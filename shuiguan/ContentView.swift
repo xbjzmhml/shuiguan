@@ -87,7 +87,7 @@ struct ContentView: View {
                     }
                 }
 
-                Text("MAZE v16")
+                Text("MAZE v20")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(Color.white.opacity(0.7))
                     .padding(.horizontal, 10)
@@ -131,42 +131,7 @@ private extension ContentView {
     func buildLevel(inlets: [CGPoint], seed: UInt64) -> MazeLevel {
         var rng = RNG(state: max(seed, 1))
 
-        let mazeTop: CGFloat = 0.24
-        let mazeBottom: CGFloat = 0.81
         let outletY: CGFloat = 0.93
-        let rows = 9
-        let cols = 8
-
-        var rowY = (0..<rows).map { i in
-            mazeTop + CGFloat(i) * (mazeBottom - mazeTop) / CGFloat(rows - 1)
-        }
-        for i in 1..<(rows - 1) {
-            rowY[i] += rng.nextCGFloat(in: -0.011...0.011)
-        }
-
-        var colX = (0..<cols).map { i in
-            0.08 + CGFloat(i) * 0.84 / CGFloat(cols - 1)
-        }
-        let warpPhase = rng.nextCGFloat(in: 0...(2 * .pi))
-        for i in 0..<cols {
-            let t = CGFloat(i) / CGFloat(cols - 1)
-            colX[i] += sin(t * .pi * 1.6 + warpPhase) * 0.012
-        }
-
-        let templates: [[(Int, Int)]] = [
-            [(0, 0), (2, 2), (1, 4), (3, 6), (5, 4), (4, 2), (6, 1), (8, 2)],
-            [(0, 1), (1, 3), (3, 1), (2, 4), (4, 6), (6, 5), (5, 3), (7, 1), (8, 0)],
-            [(0, 2), (2, 5), (4, 3), (3, 6), (5, 7), (7, 5), (6, 3), (8, 4)],
-            [(0, 3), (1, 6), (3, 4), (2, 1), (4, 2), (6, 4), (5, 6), (7, 7), (8, 6)],
-            [(0, 4), (2, 6), (1, 3), (3, 2), (5, 0), (4, 2), (6, 4), (7, 5), (8, 5)],
-            [(0, 5), (1, 7), (3, 5), (2, 2), (4, 1), (6, 3), (5, 5), (7, 6), (8, 7)],
-            [(0, 6), (2, 4), (1, 2), (3, 0), (4, 2), (6, 1), (5, 3), (7, 4), (8, 3)],
-            [(0, 7), (1, 5), (3, 7), (2, 4), (4, 3), (6, 6), (5, 4), (7, 2), (8, 1)]
-        ]
-
-        var templateOrder = Array(0..<templates.count)
-        rng.shuffle(&templateOrder)
-        let chosenTemplates = Array(templateOrder.prefix(inlets.count))
 
         let correctIndex = rng.nextInt(inlets.count)
 
@@ -183,61 +148,90 @@ private extension ContentView {
         rng.shuffle(&wrongOutlets)
         var wrongOutletCursor = 0
 
+        var upperRows: [CGFloat] = [0.30, 0.33, 0.36, 0.39, 0.42, 0.45]
+        var middleRows: [CGFloat] = [0.50, 0.53, 0.56, 0.59, 0.62, 0.65]
+        var lowerRows: [CGFloat] = [0.68, 0.71, 0.74, 0.77, 0.79, 0.81]
+        var turnCols: [CGFloat] = [0.14, 0.24, 0.34, 0.66, 0.76, 0.86]
+        var crossCols: [CGFloat] = [0.18, 0.29, 0.40, 0.60, 0.71, 0.82]
+        var loopCols: [CGFloat] = [0.12, 0.26, 0.38, 0.62, 0.74, 0.88]
+        var bottomRows: [CGFloat] = [0.83, 0.845, 0.86, 0.875, 0.89, 0.84]
+
+        rng.shuffle(&upperRows)
+        rng.shuffle(&middleRows)
+        rng.shuffle(&lowerRows)
+        rng.shuffle(&turnCols)
+        rng.shuffle(&crossCols)
+        rng.shuffle(&loopCols)
+        rng.shuffle(&bottomRows)
+
         var pipes: [Pipe] = []
         pipes.reserveCapacity(inlets.count)
 
+        func pushAway(_ value: CGFloat, from anchor: CGFloat, amount: CGFloat) -> CGFloat {
+            if abs(value - anchor) >= amount { return value }
+            let shifted = value + (value < anchor ? -amount : amount)
+            return min(max(shifted, 0.08), 0.92)
+        }
+
         for i in 0..<inlets.count {
-            let template = templates[chosenTemplates[i]]
             let inlet = inlets[i]
             var points: [CGPoint] = []
+
+            let yUpper = clampY(upperRows[i % upperRows.count] + rng.nextCGFloat(in: -0.004...0.004))
+            let yMiddle = clampY(max(yUpper + 0.12, middleRows[i % middleRows.count] + rng.nextCGFloat(in: -0.004...0.004)))
+            let yLower = clampY(max(yMiddle + 0.11, lowerRows[i % lowerRows.count] + rng.nextCGFloat(in: -0.004...0.004)))
+
+            var xTurn = turnCols[i % turnCols.count]
+            var xCross = crossCols[i % crossCols.count]
+            var xLoop = loopCols[i % loopCols.count]
+
+            xTurn = pushAway(xTurn, from: inlet.x, amount: 0.11)
+            xCross = pushAway(xCross, from: xTurn, amount: 0.12)
+            xLoop = pushAway(xLoop, from: xCross, amount: 0.11)
 
             points.append(inlet)
             points.append(CGPoint(x: inlet.x, y: 0.16))
             points.append(CGPoint(x: inlet.x, y: 0.205))
+            points.append(CGPoint(x: inlet.x, y: yUpper))
+            points.append(CGPoint(x: xTurn, y: yUpper))
+            points.append(CGPoint(x: xTurn, y: yMiddle))
+            points.append(CGPoint(x: xCross, y: yMiddle))
+            points.append(CGPoint(x: xCross, y: yLower))
+            points.append(CGPoint(x: xLoop, y: yLower))
 
-            let firstNode = template[0]
-            let firstX = colX[firstNode.1]
-            points.append(CGPoint(x: mix(inlet.x, firstX, t: 0.42), y: 0.225))
+            // Use larger rectangular return loops instead of sharp foldbacks.
+            if rng.nextInt(100) < 75 {
+                let loopY1 = clampY((yUpper + yMiddle) * 0.5 + rng.nextCGFloat(in: -0.01...0.01))
+                let loopY2 = clampY((yMiddle + yLower) * 0.5 + rng.nextCGFloat(in: -0.01...0.01))
+                let xWide = clampX(xLoop + (xLoop < 0.5 ? 0.17 : -0.17) + rng.nextCGFloat(in: -0.02...0.02))
 
-            for (row, col) in template {
-                var x = colX[col]
-                var y = rowY[row]
-
-                let wave = sin(CGFloat(row) * 0.95 + CGFloat(i) * 1.18 + CGFloat(seed % 997) * 0.001)
-                x += wave * 0.017
-                x += rng.nextCGFloat(in: -0.012...0.012)
-                y += rng.nextCGFloat(in: -0.008...0.008)
-
-                x = min(max(x, 0.06), 0.94)
-                y = min(max(y, mazeTop + 0.005), mazeBottom)
-
-                points.append(CGPoint(x: x, y: y))
+                points.append(CGPoint(x: xLoop, y: loopY1))
+                points.append(CGPoint(x: xWide, y: loopY1))
+                points.append(CGPoint(x: xWide, y: loopY2))
+                points.append(CGPoint(x: xCross, y: loopY2))
             }
-
-            points = removeCloseNeighbors(points: points, minDistance: 0.028)
-            points = softenSharpTurns(points: points)
-            points = removeCloseNeighbors(points: points, minDistance: 0.02)
 
             let isCorrect = (i == correctIndex)
             var wrongOutlet: CGPoint? = nil
 
             if isCorrect {
-                let joinX = 0.5 + rng.nextCGFloat(in: -0.03...0.03)
+                let joinX = clampX(0.5 + rng.nextCGFloat(in: -0.025...0.025))
                 points.append(CGPoint(x: joinX, y: 0.835))
                 points.append(CGPoint(x: 0.5, y: 0.865))
                 points.append(CGPoint(x: 0.5, y: outletY))
             } else {
                 let outlet = wrongOutlets[wrongOutletCursor % wrongOutlets.count]
                 wrongOutletCursor += 1
-
-                if let last = points.last {
-                    let bridgeY = min(max(last.y + 0.05, 0.82), 0.89)
-                    let bridgeX = mix(last.x, outlet.x, t: 0.6) + rng.nextCGFloat(in: -0.03...0.03)
-                    points.append(CGPoint(x: min(max(bridgeX, 0.04), 0.96), y: bridgeY))
-                }
+                let bottomLane = clampY(bottomRows[i % bottomRows.count] + rng.nextCGFloat(in: -0.004...0.004))
+                points.append(CGPoint(x: xLoop, y: bottomLane))
+                points.append(CGPoint(x: outlet.x, y: bottomLane))
                 points.append(outlet)
                 wrongOutlet = outlet
             }
+
+            points = points.map(clampMazePoint)
+            points = removeCloseNeighbors(points: points, minDistance: 0.02)
+            points = collapseLinearSegments(points: points)
 
             let drawOrder = rng.nextInt(1000)
             pipes.append(
@@ -271,81 +265,154 @@ private extension ContentView {
         return filtered
     }
 
-    func softenSharpTurns(points: [CGPoint]) -> [CGPoint] {
-        guard points.count > 2 else { return points }
+    func orthogonalizePath(points: [CGPoint], pipeIndex: Int, rng: inout RNG) -> [CGPoint] {
+        guard points.count > 1 else { return points }
+
+        struct Candidate {
+            let pivots: [CGPoint]
+            let firstDir: CGVector
+            let lastDir: CGVector
+            let cost: CGFloat
+        }
+
+        func normalized(_ v: CGVector) -> CGVector {
+            let len = max(hypot(v.dx, v.dy), 0.001)
+            return CGVector(dx: v.dx / len, dy: v.dy / len)
+        }
 
         var result: [CGPoint] = [points[0]]
+        var prevDir = CGVector(dx: 0, dy: 1)
+        let laneCenter = CGFloat(max(inletCount - 1, 1)) * 0.5
+        let laneBias = (CGFloat(pipeIndex) - laneCenter) * 0.03
+
+        for idx in 1..<points.count {
+            guard let from = result.last else { continue }
+            let to = clampMazePoint(points[idx])
+            let dx = to.x - from.x
+            let dy = to.y - from.y
+            if hypot(dx, dy) < 0.003 { continue }
+
+            if abs(dx) < 0.004 || abs(dy) < 0.004 {
+                result.append(to)
+                prevDir = CGVector(dx: dx, dy: dy)
+                continue
+            }
+
+            let horizontalPivot = clampMazePoint(CGPoint(x: to.x, y: from.y))
+            let verticalPivot = clampMazePoint(CGPoint(x: from.x, y: to.y))
+
+            func candidate(horizontalFirst: Bool) -> Candidate {
+                if horizontalFirst {
+                    let first = CGVector(dx: horizontalPivot.x - from.x, dy: 0)
+                    let last = CGVector(dx: 0, dy: to.y - horizontalPivot.y)
+                    var cost: CGFloat = 0
+                    let dot = normalized(prevDir).dx * normalized(first).dx + normalized(prevDir).dy * normalized(first).dy
+                    if dot < -0.3 { cost += 3.5 }
+                    if abs(first.dx) < 0.05 { cost += 0.8 }
+                    cost += abs(horizontalPivot.x - (0.5 + laneBias)) * 0.16
+                    return Candidate(pivots: [horizontalPivot], firstDir: first, lastDir: last, cost: cost)
+                } else {
+                    let first = CGVector(dx: 0, dy: verticalPivot.y - from.y)
+                    let last = CGVector(dx: to.x - verticalPivot.x, dy: 0)
+                    var cost: CGFloat = 0
+                    let dot = normalized(prevDir).dx * normalized(first).dx + normalized(prevDir).dy * normalized(first).dy
+                    if dot < -0.3 { cost += 3.5 }
+                    if abs(first.dy) < 0.05 { cost += 0.8 }
+                    cost += abs(verticalPivot.x - (0.5 + laneBias)) * 0.1
+                    return Candidate(pivots: [verticalPivot], firstDir: first, lastDir: last, cost: cost)
+                }
+            }
+
+            let h = candidate(horizontalFirst: true)
+            let v = candidate(horizontalFirst: false)
+            let pickHorizontal = h.cost + rng.nextCGFloat(in: 0...0.03) < v.cost + rng.nextCGFloat(in: 0...0.03)
+            let chosen = pickHorizontal ? h : v
+
+            result.append(contentsOf: chosen.pivots)
+            result.append(to)
+            prevDir = chosen.lastDir
+        }
+
+        return collapseLinearSegments(points: result)
+    }
+
+    func expandLargeLoops(points: [CGPoint]) -> [CGPoint] {
+        guard points.count > 2 else { return points }
+        var out: [CGPoint] = [points[0]]
 
         for i in 1..<(points.count - 1) {
-            guard let prev = result.last else { continue }
+            guard let prev = out.last else { continue }
             let curr = points[i]
             let next = points[i + 1]
 
             let v1 = CGVector(dx: curr.x - prev.x, dy: curr.y - prev.y)
             let v2 = CGVector(dx: next.x - curr.x, dy: next.y - curr.y)
-            let len1 = hypot(v1.dx, v1.dy)
-            let len2 = hypot(v2.dx, v2.dy)
+            let len1 = max(hypot(v1.dx, v1.dy), 0.001)
+            let len2 = max(hypot(v2.dx, v2.dy), 0.001)
+            let n1 = CGVector(dx: v1.dx / len1, dy: v1.dy / len1)
+            let n2 = CGVector(dx: v2.dx / len2, dy: v2.dy / len2)
+            let cross = abs(n1.dx * n2.dy - n1.dy * n2.dx)
+            let dot = n1.dx * n2.dx + n1.dy * n2.dy
 
-            if len1 < 0.001 || len2 < 0.001 {
+            // Reverse direction: replace with wider U-shaped loop made from 90-degree turns.
+            if cross < 0.05 && dot < -0.2 {
+                let span = min(0.13, max(0.075, (len1 + len2) * 0.44))
+                if abs(n1.dx) > abs(n1.dy) {
+                    let side: CGFloat = curr.y < 0.55 ? 1 : -1
+                    let yLoop = clampY(curr.y + side * span)
+                    out.append(clampMazePoint(CGPoint(x: curr.x, y: yLoop)))
+                    out.append(clampMazePoint(CGPoint(x: next.x, y: yLoop)))
+                } else {
+                    let side: CGFloat = curr.x < 0.5 ? 1 : -1
+                    let xLoop = clampX(curr.x + side * span)
+                    out.append(clampMazePoint(CGPoint(x: xLoop, y: curr.y)))
+                    out.append(clampMazePoint(CGPoint(x: xLoop, y: next.y)))
+                }
                 continue
             }
 
-            let u1 = CGVector(dx: v1.dx / len1, dy: v1.dy / len1)
-            let u2 = CGVector(dx: v2.dx / len2, dy: v2.dy / len2)
-            let dotValue = min(max(u1.dx * u2.dx + u1.dy * u2.dy, -1), 1)
-            let turn = acos(dotValue)
-
-            // Replace >90deg turns with a wider two-step bend.
-            if turn > (.pi / 2 + 0.08) {
-                let cut = min(0.055, min(len1, len2) * 0.33)
-                if cut > 0.008 {
-                    let pin = CGPoint(x: curr.x - u1.dx * cut, y: curr.y - u1.dy * cut)
-                    let pout = CGPoint(x: curr.x + u2.dx * cut, y: curr.y + u2.dy * cut)
-
-                    let cross = u1.dx * u2.dy - u1.dy * u2.dx
-                    let side: CGFloat = cross >= 0 ? 1 : -1
-                    let perp = CGVector(dx: -u1.dy * side, dy: u1.dx * side)
-                    let bridge = min(0.075, max(0.04, cut * 1.4))
-
-                    let bend1 = clampMazePoint(
-                        CGPoint(x: pin.x + perp.dx * bridge, y: pin.y + perp.dy * bridge)
-                    )
-                    let bend2 = clampMazePoint(
-                        CGPoint(x: pout.x + perp.dx * bridge, y: pout.y + perp.dy * bridge)
-                    )
-
-                    result.append(pin)
-                    result.append(bend1)
-                    result.append(bend2)
-                    result.append(pout)
-                    continue
-                }
-            }
-
-            // Near 90deg: widen the corner entrance/exit.
-            if turn > (.pi / 2 - 0.05) {
-                let cut = min(0.045, min(len1, len2) * 0.28)
-                if cut > 0.008 {
-                    let pin = CGPoint(x: curr.x - u1.dx * cut, y: curr.y - u1.dy * cut)
-                    let pout = CGPoint(x: curr.x + u2.dx * cut, y: curr.y + u2.dy * cut)
-                    result.append(pin)
-                    result.append(pout)
-                    continue
-                }
-            }
-
-            result.append(curr)
+            out.append(curr)
         }
 
-        result.append(points.last!)
-        return result
+        if let last = points.last {
+            out.append(last)
+        }
+        return collapseLinearSegments(points: out)
+    }
+
+    func collapseLinearSegments(points: [CGPoint]) -> [CGPoint] {
+        guard points.count > 2 else { return points }
+        var cleaned: [CGPoint] = [points[0]]
+
+        for i in 1..<(points.count - 1) {
+            guard let a = cleaned.last else { continue }
+            let b = points[i]
+            let c = points[i + 1]
+
+            let ab = CGVector(dx: b.x - a.x, dy: b.y - a.y)
+            let bc = CGVector(dx: c.x - b.x, dy: c.y - b.y)
+            if hypot(ab.dx, ab.dy) < 0.003 { continue }
+            let cross = abs(ab.dx * bc.dy - ab.dy * bc.dx)
+            if cross < 0.0005 { continue }
+            cleaned.append(b)
+        }
+
+        if let last = points.last {
+            cleaned.append(last)
+        }
+        return cleaned
     }
 
     func clampMazePoint(_ point: CGPoint) -> CGPoint {
-        CGPoint(
-            x: min(max(point.x, 0.04), 0.96),
-            y: min(max(point.y, 0.2), 0.9)
-        )
+        CGPoint(x: clampX(point.x), y: clampY(point.y))
+    }
+
+    func clampX(_ x: CGFloat) -> CGFloat {
+        min(max(x, 0.04), 0.96)
+    }
+
+    func clampY(_ y: CGFloat) -> CGFloat {
+        min(max(y, 0.2), 0.9)
     }
 
     func mix(_ a: CGFloat, _ b: CGFloat, t: CGFloat) -> CGFloat {
@@ -423,25 +490,37 @@ private extension ContentView {
         }
 
         path.move(to: scaled[0])
+        let radius = min(size.width, size.height) * 0.042
 
-        let tension: CGFloat = 0.62
+        for i in 1..<(scaled.count - 1) {
+            let prev = scaled[i - 1]
+            let curr = scaled[i]
+            let next = scaled[i + 1]
 
-        for i in 0..<(scaled.count - 1) {
-            let p0 = i == 0 ? scaled[0] : scaled[i - 1]
-            let p1 = scaled[i]
-            let p2 = scaled[i + 1]
-            let p3 = (i + 2 < scaled.count) ? scaled[i + 2] : scaled[i + 1]
+            let v1 = CGVector(dx: curr.x - prev.x, dy: curr.y - prev.y)
+            let v2 = CGVector(dx: next.x - curr.x, dy: next.y - curr.y)
+            let len1 = max(hypot(v1.dx, v1.dy), 0.001)
+            let len2 = max(hypot(v2.dx, v2.dy), 0.001)
 
-            let c1 = CGPoint(
-                x: p1.x + (p2.x - p0.x) * tension / 6,
-                y: p1.y + (p2.y - p0.y) * tension / 6
-            )
-            let c2 = CGPoint(
-                x: p2.x - (p3.x - p1.x) * tension / 6,
-                y: p2.y - (p3.y - p1.y) * tension / 6
-            )
+            let n1 = CGVector(dx: v1.dx / len1, dy: v1.dy / len1)
+            let n2 = CGVector(dx: v2.dx / len2, dy: v2.dy / len2)
+            let dot = n1.dx * n2.dx + n1.dy * n2.dy
 
-            path.addCurve(to: p2, control1: c1, control2: c2)
+            if abs(abs(dot) - 1) < 0.01 {
+                path.addLine(to: curr)
+                continue
+            }
+
+            let r = min(radius, len1 * 0.45, len2 * 0.45)
+            let inPoint = CGPoint(x: curr.x - n1.dx * r, y: curr.y - n1.dy * r)
+            let outPoint = CGPoint(x: curr.x + n2.dx * r, y: curr.y + n2.dy * r)
+
+            path.addLine(to: inPoint)
+            path.addQuadCurve(to: outPoint, control: curr)
+        }
+
+        if let last = scaled.last {
+            path.addLine(to: last)
         }
 
         return path
