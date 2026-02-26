@@ -87,7 +87,7 @@ struct ContentView: View {
                     }
                 }
 
-                Text("MAZE v20")
+                Text("MAZE v23")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(Color.white.opacity(0.7))
                     .padding(.horizontal, 10)
@@ -176,6 +176,10 @@ private extension ContentView {
         for i in 0..<inlets.count {
             let inlet = inlets[i]
             var points: [CGPoint] = []
+            // Align pipe start with funnel outlet so the top looks physically connected.
+            let funnelBottomY = inlet.y + 0.02
+            let pipeStartY = clampY(funnelBottomY - 0.004)
+            let pipeNeckY = clampY(funnelBottomY + 0.048)
 
             let yUpper = clampY(upperRows[i % upperRows.count] + rng.nextCGFloat(in: -0.004...0.004))
             let yMiddle = clampY(max(yUpper + 0.12, middleRows[i % middleRows.count] + rng.nextCGFloat(in: -0.004...0.004)))
@@ -189,8 +193,8 @@ private extension ContentView {
             xCross = pushAway(xCross, from: xTurn, amount: 0.12)
             xLoop = pushAway(xLoop, from: xCross, amount: 0.11)
 
-            points.append(inlet)
-            points.append(CGPoint(x: inlet.x, y: 0.16))
+            points.append(CGPoint(x: inlet.x, y: pipeStartY))
+            points.append(CGPoint(x: inlet.x, y: pipeNeckY))
             points.append(CGPoint(x: inlet.x, y: 0.205))
             points.append(CGPoint(x: inlet.x, y: yUpper))
             points.append(CGPoint(x: xTurn, y: yUpper))
@@ -412,7 +416,7 @@ private extension ContentView {
     }
 
     func clampY(_ y: CGFloat) -> CGFloat {
-        min(max(y, 0.2), 0.9)
+        min(max(y, 0.09), 0.9)
     }
 
     func mix(_ a: CGFloat, _ b: CGFloat, t: CGFloat) -> CGFloat {
@@ -672,12 +676,12 @@ private struct FunnelView: View {
                 Circle()
                     .fill(Color.white.opacity(0.7))
                     .frame(width: size.width * 0.28, height: size.width * 0.28)
-                    .offset(y: size.height * 0.75)
+                    .offset(y: size.height * 0.25)
 
                 Circle()
                     .fill(Color(red: 0.35, green: 0.9, blue: 1.0, opacity: isActive ? 0.8 : 0.3))
                     .frame(width: size.width * 0.2, height: size.width * 0.2)
-                    .offset(y: size.height * 0.75)
+                    .offset(y: size.height * 0.25)
                     .shadow(color: Color(red: 0.3, green: 0.9, blue: 1.0, opacity: isActive ? 0.8 : 0.3),
                             radius: isActive ? 12 : 4,
                             x: 0,
