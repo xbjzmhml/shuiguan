@@ -20,24 +20,47 @@ struct LevelGenerator {
     }
 
     func nextSeed(from old: UInt64) -> UInt64 {
-        var x = old ^ UInt64(Date().timeIntervalSince1970 * 1000)
-        x = x &* 2862933555777941757 &+ 3037000493
+        // Deterministic seed step: same input seed always yields same next level.
+        var x = old &+ 0x9E3779B97F4A7C15
+        x = (x ^ (x >> 30)) &* 0xBF58476D1CE4E5B9
+        x = (x ^ (x >> 27)) &* 0x94D049BB133111EB
+        x = x ^ (x >> 31)
         return max(x, 1)
     }
 
-    func generate(seed: UInt64) -> (inlets: [CGPoint], level: MazeLevel) {
+    func generate(seed: UInt64) -> (inlets: [CGPoint], level: MazeLevel, resolvedSeed: UInt64) {
         let inlets = inletPositions()
         var candidateSeed = max(seed, 1)
+        let mainOutlet = CGPoint(x: 0.5, y: 0.93)
+        var bestLevel: MazeLevel?
+        var bestSeed: UInt64 = candidateSeed
+        var bestPenalty: CGFloat = .greatestFiniteMagnitude
 
-        for _ in 0..<8 {
+        for _ in 0..<60 {
             let level = buildLevel(inlets: inlets, seed: candidateSeed)
-            if validator.validate(level: level, inletCount: inletCount) {
-                return (inlets, level)
+            let result = validator.evaluate(
+                level: level,
+                inletCount: inletCount,
+                inlets: inlets,
+                mainOutlet: mainOutlet
+            )
+
+            if result.penalty < bestPenalty {
+                bestPenalty = result.penalty
+                bestLevel = level
+                bestSeed = candidateSeed
+            }
+
+            if result.isValid {
+                return (inlets, level, candidateSeed)
             }
             candidateSeed = nextSeed(from: candidateSeed)
         }
 
-        return (inlets, buildLevel(inlets: inlets, seed: candidateSeed))
+        if let bestLevel {
+            return (inlets, bestLevel, bestSeed)
+        }
+        return (inlets, buildLevel(inlets: inlets, seed: candidateSeed), candidateSeed)
     }
 }
 

@@ -10,6 +10,7 @@ struct GameView: View {
             let generated = generator.generate(seed: gameState.levelSeed)
             let inlets = generated.inlets
             let level = generated.level
+            let resolvedSeed = generated.resolvedSeed
             let pipes = level.pipes
             let pipeWidth = min(size.width, size.height) * 0.045
 
@@ -34,7 +35,7 @@ struct GameView: View {
 
                 if gameState.phase == .result {
                     resultPanel(size: size) {
-                        let nextSeed = generator.nextSeed(from: gameState.levelSeed)
+                        let nextSeed = generator.nextSeed(from: resolvedSeed)
                         gameState.finishRound(nextSeed: nextSeed)
                     }
                 }
@@ -48,7 +49,7 @@ struct GameView: View {
                 answerHintPanel(size: size, correctFunnelID: level.correctPipeID)
                 progressDebugPanel(size: size)
 
-                Text("MAZE v28")
+                Text("MAZE v32")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(Color.white.opacity(0.7))
                     .padding(.horizontal, 10)
@@ -60,7 +61,7 @@ struct GameView: View {
             .contentShape(Rectangle())
             .onTapGesture {
                 guard gameState.phase == .result else { return }
-                let nextSeed = generator.nextSeed(from: gameState.levelSeed)
+                let nextSeed = generator.nextSeed(from: resolvedSeed)
                 gameState.finishRound(nextSeed: nextSeed)
             }
         }
@@ -460,26 +461,20 @@ private struct WaterCupView: View {
             let centerX = size.width * 0.5
             let topY: CGFloat = 0
             let bottomY = height
+            let liquidHeight = height * 0.33
+            let liquidY = bottomY - liquidHeight * 0.46
 
-            ZStack(alignment: .bottom) {
-                Path { path in
-                    path.move(to: CGPoint(x: centerX - topWidth * 0.5, y: topY))
-                    path.addLine(to: CGPoint(x: centerX + topWidth * 0.5, y: topY))
-                    path.addLine(to: CGPoint(x: centerX + bottomWidth * 0.5, y: bottomY))
-                    path.addLine(to: CGPoint(x: centerX - bottomWidth * 0.5, y: bottomY))
-                    path.closeSubpath()
-                }
-                .fill(Color.white.opacity(isFilled ? 0.35 : 0.12))
-                .overlay(
-                    Path { path in
-                        path.move(to: CGPoint(x: centerX - topWidth * 0.5, y: topY))
-                        path.addLine(to: CGPoint(x: centerX + topWidth * 0.5, y: topY))
-                        path.addLine(to: CGPoint(x: centerX + bottomWidth * 0.5, y: bottomY))
-                        path.addLine(to: CGPoint(x: centerX - bottomWidth * 0.5, y: bottomY))
-                        path.closeSubpath()
-                    }
-                    .stroke(Color.white.opacity(0.55), lineWidth: 1)
-                )
+            let cupPath = Path { path in
+                path.move(to: CGPoint(x: centerX - topWidth * 0.5, y: topY))
+                path.addLine(to: CGPoint(x: centerX + topWidth * 0.5, y: topY))
+                path.addLine(to: CGPoint(x: centerX + bottomWidth * 0.5, y: bottomY))
+                path.addLine(to: CGPoint(x: centerX - bottomWidth * 0.5, y: bottomY))
+                path.closeSubpath()
+            }
+
+            ZStack {
+                cupPath
+                    .fill(Color.white.opacity(isFilled ? 0.35 : 0.12))
 
                 RoundedRectangle(cornerRadius: size.width * 0.08, style: .continuous)
                     .fill(
@@ -492,8 +487,12 @@ private struct WaterCupView: View {
                             endPoint: .bottom
                         )
                     )
-                    .frame(width: size.width * 0.46, height: size.height * 0.3)
-                    .offset(y: -size.height * 0.1)
+                    .frame(width: topWidth * 0.74, height: liquidHeight)
+                    .position(x: centerX, y: liquidY)
+                    .mask(cupPath)
+
+                cupPath
+                    .stroke(Color.white.opacity(0.55), lineWidth: 1)
             }
         }
     }

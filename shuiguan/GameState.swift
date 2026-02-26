@@ -56,10 +56,20 @@ final class GameState: ObservableObject {
         self.lives = min(max(storedLives ?? defaultLives, 0), defaultLives)
         self.streak = max(storedStreak ?? 0, 0)
 
-        persistProgress()
+        // Each relaunch starts with full cups to avoid half-dead sessions.
+        self.lives = maxLives
+
+        if lives <= 0 {
+            restorePlayableProgress()
+        } else {
+            persistProgress()
+        }
     }
 
     func startPour(pipeID: Int, correctPipeID: Int) {
+        if lives <= 0 {
+            restorePlayableProgress()
+        }
         guard phase == .idle else { return }
         guard lives > 0 else { return }
 
@@ -182,6 +192,15 @@ final class GameState: ObservableObject {
         waterProgress = 0
         lastResultCorrect = false
         phase = .idle
+    }
+
+    private func restorePlayableProgress() {
+        levelSeed = startSeed
+        levelNumber = 1
+        lives = maxLives
+        streak = 0
+        resetRoundState()
+        persistProgress()
     }
 
     private func persistProgress() {
