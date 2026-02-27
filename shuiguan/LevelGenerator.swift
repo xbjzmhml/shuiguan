@@ -21,7 +21,8 @@ private enum LevelDifficulty {
         switch self {
         case .easy:
             return GenerationProfile(
-                attemptCount: 48,
+                attemptCount: 72,
+                targetPenalty: 2.65,
                 upperRows: [0.30, 0.33, 0.36, 0.39, 0.42, 0.45],
                 middleRows: [0.50, 0.54, 0.58, 0.62, 0.64, 0.60],
                 lowerRows: [0.70, 0.73, 0.76, 0.79, 0.82, 0.78],
@@ -43,7 +44,8 @@ private enum LevelDifficulty {
             )
         case .normal:
             return GenerationProfile(
-                attemptCount: 60,
+                attemptCount: 88,
+                targetPenalty: 3.05,
                 upperRows: [0.30, 0.33, 0.36, 0.39, 0.42, 0.45],
                 middleRows: [0.50, 0.53, 0.56, 0.59, 0.62, 0.65],
                 lowerRows: [0.68, 0.71, 0.74, 0.77, 0.79, 0.81],
@@ -65,7 +67,8 @@ private enum LevelDifficulty {
             )
         case .hard:
             return GenerationProfile(
-                attemptCount: 76,
+                attemptCount: 108,
+                targetPenalty: 3.45,
                 upperRows: [0.29, 0.32, 0.35, 0.38, 0.41, 0.44],
                 middleRows: [0.48, 0.52, 0.55, 0.58, 0.61, 0.64],
                 lowerRows: [0.67, 0.70, 0.73, 0.76, 0.79, 0.82],
@@ -91,6 +94,7 @@ private enum LevelDifficulty {
 
 private struct GenerationProfile {
     let attemptCount: Int
+    let targetPenalty: CGFloat
     let upperRows: [CGFloat]
     let middleRows: [CGFloat]
     let lowerRows: [CGFloat]
@@ -114,6 +118,19 @@ private struct GenerationProfile {
 struct LevelGenerator {
     let inletCount: Int
     private let validator = LevelValidator()
+    private struct CacheKey: Hashable {
+        let seed: UInt64
+        let levelNumber: Int
+        let inletCount: Int
+    }
+
+    private struct CacheValue {
+        let inlets: [CGPoint]
+        let level: MazeLevel
+        let resolvedSeed: UInt64
+    }
+
+    private static var cache: [CacheKey: CacheValue] = [:]
 
     init(inletCount: Int = 6) {
         self.inletCount = inletCount
@@ -139,40 +156,75 @@ struct LevelGenerator {
     }
 
     func generate(seed: UInt64, levelNumber: Int = 1) -> (inlets: [CGPoint], level: MazeLevel, resolvedSeed: UInt64) {
+        let cacheKey = CacheKey(
+            seed: max(seed, 1),
+            levelNumber: max(levelNumber, 1),
+            inletCount: inletCount
+        )
+        if let cached = Self.cache[cacheKey] {
+            return (cached.inlets, cached.level, cached.resolvedSeed)
+        }
+
         let inlets = inletPositions()
         let difficulty = LevelDifficulty.forLevel(levelNumber)
         let profile = difficulty.profile
         var candidateSeed = max(seed, 1)
         let mainOutlet = CGPoint(x: 0.5, y: 0.93)
-        var bestLevel: MazeLevel?
-        var bestSeed: UInt64 = candidateSeed
-        var bestPenalty: CGFloat = .greatestFiniteMagnitude
+        var bestAnyLevel: MazeLevel?
+        var bestAnySeed: UInt64 = candidateSeed
+        var bestAnyPenalty: CGFloat = .greatestFiniteMagnitude
+        var bestValidLevel: MazeLevel?
+        var bestValidSeed: UInt64 = candidateSeed
+        var bestValidPenalty: CGFloat = .greatestFiniteMagnitude
+
+        func cacheAndReturn(
+            _ inlets: [CGPoint],
+            _ level: MazeLevel,
+            _ resolvedSeed: UInt64
+        ) -> (inlets: [CGPoint], level: MazeLevel, resolvedSeed: UInt64) {
+            Self.cache[cacheKey] = CacheValue(inlets: inlets, level: level, resolvedSeed: resolvedSeed)
+            if Self.cache.count > 320, let stale = Self.cache.keys.first {
+                Self.cache.removeValue(forKey: stale)
+            }
+            return (inlets, level, resolvedSeed)
+        }
 
         for _ in 0..<profile.attemptCount {
             let level = buildLevel(inlets: inlets, seed: candidateSeed, profile: profile)
-            let result = validator.evaluate(
+            let validation = validator.evaluate(
                 level: level,
                 inletCount: inletCount,
                 inlets: inlets,
                 mainOutlet: mainOutlet
             )
 
-            if result.penalty < bestPenalty {
-                bestPenalty = result.penalty
-                bestLevel = level
-                bestSeed = candidateSeed
+            if validation.penalty < bestAnyPenalty {
+                bestAnyPenalty = validation.penalty
+                bestAnyLevel = level
+                bestAnySeed = candidateSeed
             }
 
-            if result.isValid {
-                return (inlets, level, candidateSeed)
+            if validation.isValid, validation.penalty < bestValidPenalty {
+                bestValidPenalty = validation.penalty
+                bestValidLevel = level
+                bestValidSeed = candidateSeed
+                if validation.penalty <= profile.targetPenalty {
+                    return cacheAndReturn(inlets, level, candidateSeed)
+                }
             }
             candidateSeed = nextSeed(from: candidateSeed)
         }
 
-        if let bestLevel {
-            return (inlets, bestLevel, bestSeed)
+        if let bestValidLevel {
+            return cacheAndReturn(inlets, bestValidLevel, bestValidSeed)
         }
-        return (inlets, buildLevel(inlets: inlets, seed: candidateSeed, profile: profile), candidateSeed)
+
+        if let bestAnyLevel {
+            return cacheAndReturn(inlets, bestAnyLevel, bestAnySeed)
+        }
+
+        let fallback = buildLevel(inlets: inlets, seed: candidateSeed, profile: profile)
+        return cacheAndReturn(inlets, fallback, candidateSeed)
     }
 }
 
