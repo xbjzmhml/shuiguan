@@ -16,6 +16,25 @@ struct PraiseBanner: Identifiable {
     let glowRadius: CGFloat
 }
 
+struct ChapterProgressInfo {
+    let targetChapter: Int
+    let earnedStars: Int
+    let requiredStars: Int
+    let sourceRange: ClosedRange<Int>
+
+    var isUnlocked: Bool {
+        earnedStars >= requiredStars
+    }
+}
+
+struct ChapterLockNotice: Identifiable {
+    let id = UUID()
+    let targetChapter: Int
+    let earnedStars: Int
+    let requiredStars: Int
+    let replayStartLevel: Int
+}
+
 final class GameState: ObservableObject {
     @Published var activePipeID: Int?
     @Published var waterProgress: CGFloat = 0
@@ -27,6 +46,10 @@ final class GameState: ObservableObject {
     @Published private(set) var levelNumber: Int = 1
     @Published private(set) var checkpointLevel: Int = 1
     @Published private(set) var praiseBanner: PraiseBanner?
+    @Published private(set) var totalStars: Int = 0
+    @Published private(set) var lastEarnedStars: Int = 0
+    @Published private(set) var chapterLockNotice: ChapterLockNotice?
+    @Published private(set) var levelMistakes: Int = 0
 
     let maxLives = 3
     private let storage = UserDefaults.standard
@@ -34,6 +57,9 @@ final class GameState: ObservableObject {
     private let startSeed: UInt64
     private let generator = LevelGenerator(inletCount: 6)
     private var checkpointSeed: UInt64 = 1
+    private var bestStarsByLevel: [Int: Int] = [:]
+    private static let chapterSize = 10
+    private static let chapterUnlockRequiredStars = 18
     private enum StorageKey {
         static let startSeed = "shuiguan.startSeed"
         static let levelSeed = "shuiguan.levelSeed"
@@ -42,6 +68,8 @@ final class GameState: ObservableObject {
         static let streak = "shuiguan.streak"
         static let checkpointSeed = "shuiguan.checkpointSeed"
         static let checkpointLevel = "shuiguan.checkpointLevel"
+        static let levelStars = "shuiguan.levelStars"
+        static let levelMistakes = "shuiguan.levelMistakes"
     }
 
     let animationDuration: Double = 3.2
@@ -54,10 +82,13 @@ final class GameState: ObservableObject {
         let storedLevelNumber = storage.object(forKey: StorageKey.levelNumber) as? Int
         let storedLives = storage.object(forKey: StorageKey.lives) as? Int
         let storedStreak = storage.object(forKey: StorageKey.streak) as? Int
+        let storedLevelMistakes = storage.object(forKey: StorageKey.levelMistakes) as? Int
         let storedCheckpointSeed = Self.readUInt64(StorageKey.checkpointSeed, from: storage)
         let storedCheckpointLevel = storage.object(forKey: StorageKey.checkpointLevel) as? Int
 
         self.startSeed = storedStartSeed ?? defaultSeed
+        self.bestStarsByLevel = Self.readLevelStars(from: storage)
+        self.totalStars = bestStarsByLevel.values.reduce(0, +)
 
         // First launch: create a clean progression from level 1.
         guard let savedLevelSeed = storedLevelSeed,
@@ -66,6 +97,7 @@ final class GameState: ObservableObject {
             self.levelNumber = 1
             self.lives = defaultLives
             self.streak = 0
+            self.levelMistakes = 0
             self.checkpointLevel = 1
             self.checkpointSeed = self.startSeed
             persistProgress()
@@ -77,6 +109,7 @@ final class GameState: ObservableObject {
         self.levelNumber = max(savedLevelNumber, 1)
         self.lives = min(max(storedLives ?? defaultLives, 0), defaultLives)
         self.streak = max(storedStreak ?? 0, 0)
+        self.levelMistakes = max(storedLevelMistakes ?? 0, 0)
 
         if let checkpointLevel = storedCheckpointLevel,
            let checkpointSeed = storedCheckpointSeed,
@@ -89,6 +122,10 @@ final class GameState: ObservableObject {
             self.checkpointSeed = seedForLevel(self.checkpointLevel)
         }
 
+        if let gate = gateInfoForAccessingLevel(self.levelNumber), !gate.isUnlocked {
+            applyChapterLock(gate)
+        }
+
         if lives <= 0 {
             restoreFromCheckpoint()
         } else {
@@ -96,7 +133,20 @@ final class GameState: ObservableObject {
         }
     }
 
+    func chapterProgressForHUD() -> ChapterProgressInfo {
+        chapterProgressForUnlockingChapter(currentChapter + 1)
+    }
+
+    var currentChapter: Int {
+        Self.chapterForLevel(levelNumber)
+    }
+
+    func dismissChapterLockNotice() {
+        chapterLockNotice = nil
+    }
+
     func startPour(pipeID: Int, correctPipeID: Int) {
+        chapterLockNotice = nil
         if lives <= 0 {
             restoreFromCheckpoint()
         }
@@ -130,9 +180,12 @@ final class GameState: ObservableObject {
 
         phase = lastResultCorrect ? .success : .fail
         if lastResultCorrect {
+            lastEarnedStars = awardedStarsForCurrentRound()
             streak += 1
             triggerPraiseIfNeeded()
         } else {
+            lastEarnedStars = 0
+            levelMistakes += 1
             lives = max(lives - 1, 0)
             streak = 0
         }
@@ -158,12 +211,22 @@ final class GameState: ObservableObject {
         guard phase == .result else { return }
 
         if lastResultCorrect {
-            levelSeed = nextSeed
-            levelNumber += 1
-            if Self.isCheckpointLevel(levelNumber) {
-                checkpointLevel = levelNumber
-                checkpointSeed = levelSeed
+            let completedLevel = levelNumber
+            let earnedStars = max(lastEarnedStars, awardedStarsForCurrentRound())
+            updateBestStars(for: completedLevel, earned: earnedStars)
+
+            let nextLevel = levelNumber + 1
+            if let gate = gateInfoForAccessingLevel(nextLevel), !gate.isUnlocked {
+                applyChapterLock(gate)
+            } else {
+                levelSeed = nextSeed
+                levelNumber = nextLevel
+                if Self.isCheckpointLevel(levelNumber) {
+                    checkpointLevel = levelNumber
+                    checkpointSeed = levelSeed
+                }
             }
+            levelMistakes = 0
         } else if lives == 0 {
             // All cups used: fallback to last checkpoint (10, 20, 30...).
             restoreFromCheckpoint()
@@ -223,6 +286,7 @@ final class GameState: ObservableObject {
         activePipeID = nil
         waterProgress = 0
         lastResultCorrect = false
+        lastEarnedStars = 0
         phase = .idle
     }
 
@@ -231,6 +295,8 @@ final class GameState: ObservableObject {
         levelNumber = checkpointLevel
         lives = maxLives
         streak = 0
+        levelMistakes = 0
+        chapterLockNotice = nil
         resetRoundState()
         persistProgress()
     }
@@ -255,20 +321,104 @@ final class GameState: ObservableObject {
         storage.set(levelNumber, forKey: StorageKey.levelNumber)
         storage.set(lives, forKey: StorageKey.lives)
         storage.set(streak, forKey: StorageKey.streak)
+        storage.set(levelMistakes, forKey: StorageKey.levelMistakes)
         storage.set(checkpointSeed, forKey: StorageKey.checkpointSeed)
         storage.set(checkpointLevel, forKey: StorageKey.checkpointLevel)
+        storage.set(encodeLevelStars(bestStarsByLevel), forKey: StorageKey.levelStars)
+    }
+
+    private func updateBestStars(for level: Int, earned: Int) {
+        let resolvedLevel = max(level, 1)
+        let resolvedStars = min(max(earned, 1), 3)
+        let old = bestStarsByLevel[resolvedLevel] ?? 0
+        if resolvedStars > old {
+            bestStarsByLevel[resolvedLevel] = resolvedStars
+            totalStars += (resolvedStars - old)
+        }
+    }
+
+    private func awardedStarsForCurrentRound() -> Int {
+        switch levelMistakes {
+        case 0:
+            return 3
+        case 1:
+            return 2
+        default:
+            return 1
+        }
+    }
+
+    private func stars(in range: ClosedRange<Int>) -> Int {
+        guard range.lowerBound <= range.upperBound else { return 0 }
+        return range.reduce(0) { partial, level in
+            partial + (bestStarsByLevel[level] ?? 0)
+        }
+    }
+
+    private func chapterProgressForUnlockingChapter(_ chapter: Int) -> ChapterProgressInfo {
+        let safeChapter = max(chapter, 2)
+        let previousChapter = safeChapter - 1
+        let start = (previousChapter - 1) * Self.chapterSize + 1
+        let end = previousChapter * Self.chapterSize
+        let earned = stars(in: start...end)
+        return ChapterProgressInfo(
+            targetChapter: safeChapter,
+            earnedStars: earned,
+            requiredStars: Self.chapterUnlockRequiredStars,
+            sourceRange: start...end
+        )
+    }
+
+    private func gateInfoForAccessingLevel(_ level: Int) -> ChapterProgressInfo? {
+        let resolvedLevel = max(level, 1)
+        guard resolvedLevel > Self.chapterSize else { return nil }
+        let chapter = Self.chapterForLevel(resolvedLevel)
+        let gate = chapterProgressForUnlockingChapter(chapter)
+        return gate.isUnlocked ? nil : gate
+    }
+
+    private func applyChapterLock(_ gate: ChapterProgressInfo) {
+        let replayLevel = gate.sourceRange.lowerBound
+        levelNumber = replayLevel
+        levelSeed = seedForLevel(replayLevel)
+        lives = maxLives
+        streak = 0
+        levelMistakes = 0
+        checkpointLevel = Self.checkpointForLevel(replayLevel)
+        checkpointSeed = seedForLevel(checkpointLevel)
+        chapterLockNotice = ChapterLockNotice(
+            targetChapter: gate.targetChapter,
+            earnedStars: gate.earnedStars,
+            requiredStars: gate.requiredStars,
+            replayStartLevel: replayLevel
+        )
+    }
+
+    private func encodeLevelStars(_ map: [Int: Int]) -> [String: Int] {
+        var encoded: [String: Int] = [:]
+        encoded.reserveCapacity(map.count)
+        for (level, stars) in map {
+            guard level >= 1 else { continue }
+            encoded[String(level)] = min(max(stars, 1), 3)
+        }
+        return encoded
     }
 
     private static func checkpointForLevel(_ level: Int) -> Int {
         let resolvedLevel = max(level, 1)
-        if resolvedLevel < 10 {
+        if resolvedLevel < chapterSize {
             return 1
         }
-        return (resolvedLevel / 10) * 10
+        return (resolvedLevel / chapterSize) * chapterSize
     }
 
     private static func isCheckpointLevel(_ level: Int) -> Bool {
-        level >= 10 && level % 10 == 0
+        level >= chapterSize && level % chapterSize == 0
+    }
+
+    private static func chapterForLevel(_ level: Int) -> Int {
+        let resolvedLevel = max(level, 1)
+        return ((resolvedLevel - 1) / chapterSize) + 1
     }
 
     private static func readUInt64(_ key: String, from storage: UserDefaults) -> UInt64? {
@@ -279,5 +429,19 @@ final class GameState: ObservableObject {
             return UInt64(text)
         }
         return nil
+    }
+
+    private static func readLevelStars(from storage: UserDefaults) -> [Int: Int] {
+        guard let raw = storage.dictionary(forKey: StorageKey.levelStars) as? [String: Int] else {
+            return [:]
+        }
+
+        var cleaned: [Int: Int] = [:]
+        cleaned.reserveCapacity(raw.count)
+        for (levelText, stars) in raw {
+            guard let level = Int(levelText), level >= 1 else { continue }
+            cleaned[level] = min(max(stars, 1), 3)
+        }
+        return cleaned
     }
 }

@@ -51,12 +51,23 @@ struct GameView: View {
                 }
 
                 livesPanel(size: size)
+                chapterStarsPanel(
+                    size: size,
+                    currentChapter: gameState.currentChapter,
+                    nextProgress: gameState.chapterProgressForHUD()
+                )
                 if showDebugHUD {
                     answerHintPanel(size: size, correctFunnelID: level.correctPipeID)
                     progressDebugPanel(size: size)
                 }
 
-                Text("MAZE v38")
+                if let lockNotice = gameState.chapterLockNotice {
+                    chapterLockPanel(size: size, notice: lockNotice) {
+                        gameState.dismissChapterLockNotice()
+                    }
+                }
+
+                Text("MAZE v40")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(Color.white.opacity(0.7))
                     .padding(.horizontal, 10)
@@ -311,6 +322,43 @@ private extension GameView {
         .allowsHitTesting(false)
     }
 
+    func chapterStarsPanel(
+        size: CGSize,
+        currentChapter: Int,
+        nextProgress: ChapterProgressInfo
+    ) -> some View {
+        let progressText: String = {
+            if nextProgress.isUnlocked {
+                return "解锁第\(nextProgress.targetChapter)章 已达成"
+            }
+            return "解锁第\(nextProgress.targetChapter)章 \(nextProgress.earnedStars)/\(nextProgress.requiredStars)"
+        }()
+        let progressColor = nextProgress.isUnlocked
+            ? Color(red: 0.56, green: 0.98, blue: 0.8)
+            : Color.white.opacity(0.76)
+
+        return VStack(alignment: .trailing, spacing: 2) {
+            Text("⭐ \(gameState.totalStars)")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(Color.white.opacity(0.92))
+            Text("当前：第\(currentChapter)章")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Color.white.opacity(0.82))
+            Text(progressText)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(progressColor)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(Color.black.opacity(0.26), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+        )
+        .position(x: size.width * 0.82, y: size.height * 0.955)
+        .allowsHitTesting(false)
+    }
+
     func answerHintPanel(size: CGSize, correctFunnelID: Int) -> some View {
         Text("Correct: F\(correctFunnelID + 1)")
             .font(.system(size: 12, weight: .semibold))
@@ -318,7 +366,7 @@ private extension GameView {
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
             .background(Color.black.opacity(0.28), in: Capsule())
-            .position(x: size.width * 0.82, y: size.height * 0.958)
+            .position(x: size.width * 0.82, y: size.height * 0.915)
             .allowsHitTesting(false)
     }
 
@@ -343,9 +391,51 @@ private extension GameView {
             .allowsHitTesting(false)
     }
 
+    func chapterLockPanel(
+        size: CGSize,
+        notice: ChapterLockNotice,
+        onDismiss: @escaping () -> Void
+    ) -> some View {
+        VStack(spacing: 10) {
+            Text("第\(notice.targetChapter)章未解锁")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(Color.white.opacity(0.96))
+
+            Text("当前 \(notice.earnedStars)/\(notice.requiredStars) 星")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(Color.white.opacity(0.82))
+
+            Text("已回到第 \(notice.replayStartLevel) 关刷星")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(Color.white.opacity(0.74))
+
+            Button(action: onDismiss) {
+                Text("知道了")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.white)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 7)
+                    .background(
+                        Color(red: 0.28, green: 0.62, blue: 0.86, opacity: 0.95),
+                        in: Capsule()
+                    )
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(Color.black.opacity(0.38), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .stroke(Color.white.opacity(0.16), lineWidth: 1)
+        )
+        .position(x: size.width * 0.5, y: size.height * 0.24)
+        .transition(.opacity)
+    }
+
     func resultPanel(size: CGSize, onFinish: @escaping () -> Void) -> some View {
         let success = gameState.lastResultCorrect
         let outOfLives = !success && gameState.lives == 0
+        let stars = gameState.lastEarnedStars
         let title: String = {
             if success { return "通关成功" }
             if outOfLives { return "水杯用完，回到第 \(gameState.checkpointLevel) 关" }
@@ -357,7 +447,7 @@ private extension GameView {
             return "重试"
         }()
         let subtitle: String = {
-            if success { return "连中 \(gameState.streak)" }
+            if success { return "本关 \(stars) 星 · 总星 \(gameState.totalStars)" }
             if outOfLives { return "已回退到第 \(gameState.checkpointLevel) 关" }
             return "剩余水杯 \(gameState.lives)/\(gameState.maxLives)"
         }()
@@ -370,6 +460,20 @@ private extension GameView {
             Text(subtitle)
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(Color.white.opacity(0.75))
+
+            if success {
+                HStack(spacing: 7) {
+                    ForEach(0..<3, id: \.self) { idx in
+                        Image(systemName: idx < stars ? "star.fill" : "star")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(
+                                idx < stars
+                                ? Color(red: 1.0, green: 0.86, blue: 0.36)
+                                : Color.white.opacity(0.4)
+                            )
+                    }
+                }
+            }
 
             Button(action: onFinish) {
                 Text(buttonTitle)
