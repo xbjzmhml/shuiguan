@@ -56,7 +56,7 @@ struct GameView: View {
                     progressDebugPanel(size: size)
                 }
 
-                Text("MAZE v37")
+                Text("MAZE v38")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(Color.white.opacity(0.7))
                     .padding(.horizontal, 10)

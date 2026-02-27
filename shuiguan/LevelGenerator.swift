@@ -130,7 +130,27 @@ struct LevelGenerator {
         let resolvedSeed: UInt64
     }
 
+    private struct LevelFootprint {
+        let levelNumber: Int
+        let correctInlet: Int
+        let cells: Set<Int>
+    }
+
+    private static let tutorialLayoutSeeds: [UInt64] = [
+        0x4F9D_1821_A6B3_7C11,
+        0x6E37_A95B_1420_FC8D,
+        0x9B21_55A0_38D4_0F67,
+        0x1FC8_DA47_925E_B301,
+        0xA420_77C1_6E2D_19B5,
+        0xD8F3_041B_5AC9_E27F,
+        0x2B71_EEC0_91D8_45A3,
+        0x75C4_132F_B8A6_DE09,
+        0xC01E_9A65_47B2_3D81,
+        0x8AD7_5F90_1CE4_62BB
+    ]
+
     private static var cache: [CacheKey: CacheValue] = [:]
+    private static var recentFootprints: [LevelFootprint] = []
 
     init(inletCount: Int = 6) {
         self.inletCount = inletCount
@@ -156,9 +176,12 @@ struct LevelGenerator {
     }
 
     func generate(seed: UInt64, levelNumber: Int = 1) -> (inlets: [CGPoint], level: MazeLevel, resolvedSeed: UInt64) {
+        let normalizedSeed = max(seed, 1)
+        let normalizedLevel = max(levelNumber, 1)
+
         let cacheKey = CacheKey(
-            seed: max(seed, 1),
-            levelNumber: max(levelNumber, 1),
+            seed: normalizedSeed,
+            levelNumber: normalizedLevel,
             inletCount: inletCount
         )
         if let cached = Self.cache[cacheKey] {
@@ -166,16 +189,7 @@ struct LevelGenerator {
         }
 
         let inlets = inletPositions()
-        let difficulty = LevelDifficulty.forLevel(levelNumber)
-        let profile = difficulty.profile
-        var candidateSeed = max(seed, 1)
         let mainOutlet = CGPoint(x: 0.5, y: 0.93)
-        var bestAnyLevel: MazeLevel?
-        var bestAnySeed: UInt64 = candidateSeed
-        var bestAnyPenalty: CGFloat = .greatestFiniteMagnitude
-        var bestValidLevel: MazeLevel?
-        var bestValidSeed: UInt64 = candidateSeed
-        var bestValidPenalty: CGFloat = .greatestFiniteMagnitude
 
         func cacheAndReturn(
             _ inlets: [CGPoint],
@@ -186,8 +200,26 @@ struct LevelGenerator {
             if Self.cache.count > 320, let stale = Self.cache.keys.first {
                 Self.cache.removeValue(forKey: stale)
             }
+            rememberRecentFootprint(for: level, levelNumber: normalizedLevel)
             return (inlets, level, resolvedSeed)
         }
+
+        // First 10 levels are fixed tutorial layouts (non-random), but we keep the
+        // incoming progression seed as resolvedSeed so post-tutorial randomness remains unique per user.
+        if normalizedLevel <= Self.tutorialLayoutSeeds.count {
+            let tutorial = generateTutorialLevel(inlets: inlets, levelNumber: normalizedLevel, mainOutlet: mainOutlet)
+            return cacheAndReturn(inlets, tutorial, normalizedSeed)
+        }
+
+        let difficulty = LevelDifficulty.forLevel(normalizedLevel)
+        let profile = difficulty.profile
+        var candidateSeed = normalizedSeed
+        var bestAnyLevel: MazeLevel?
+        var bestAnySeed: UInt64 = candidateSeed
+        var bestAnyPenalty: CGFloat = .greatestFiniteMagnitude
+        var bestValidLevel: MazeLevel?
+        var bestValidSeed: UInt64 = candidateSeed
+        var bestValidPenalty: CGFloat = .greatestFiniteMagnitude
 
         for _ in 0..<profile.attemptCount {
             let level = buildLevel(inlets: inlets, seed: candidateSeed, profile: profile)
@@ -197,18 +229,20 @@ struct LevelGenerator {
                 inlets: inlets,
                 mainOutlet: mainOutlet
             )
+            let duplicatePenalty = duplicationPenalty(for: level, levelNumber: normalizedLevel)
+            let effectivePenalty = validation.penalty + duplicatePenalty
 
-            if validation.penalty < bestAnyPenalty {
-                bestAnyPenalty = validation.penalty
+            if effectivePenalty < bestAnyPenalty {
+                bestAnyPenalty = effectivePenalty
                 bestAnyLevel = level
                 bestAnySeed = candidateSeed
             }
 
-            if validation.isValid, validation.penalty < bestValidPenalty {
-                bestValidPenalty = validation.penalty
+            if validation.isValid, effectivePenalty < bestValidPenalty {
+                bestValidPenalty = effectivePenalty
                 bestValidLevel = level
                 bestValidSeed = candidateSeed
-                if validation.penalty <= profile.targetPenalty {
+                if duplicatePenalty < 0.001, validation.penalty <= profile.targetPenalty {
                     return cacheAndReturn(inlets, level, candidateSeed)
                 }
             }
@@ -229,6 +263,267 @@ struct LevelGenerator {
 }
 
 private extension LevelGenerator {
+    func generateTutorialLevel(inlets: [CGPoint], levelNumber: Int, mainOutlet: CGPoint) -> MazeLevel {
+        let tutorialIndex = min(max(levelNumber - 1, 0), Self.tutorialLayoutSeeds.count - 1)
+        let layoutSeed = Self.tutorialLayoutSeeds[tutorialIndex]
+        let profile = tutorialProfile(for: levelNumber)
+        var candidateSeed = layoutSeed
+        var bestLevel: MazeLevel?
+        var bestPenalty: CGFloat = .greatestFiniteMagnitude
+
+        for _ in 0..<profile.attemptCount {
+            let level = buildLevel(inlets: inlets, seed: candidateSeed, profile: profile)
+            let validation = validator.evaluate(
+                level: level,
+                inletCount: inletCount,
+                inlets: inlets,
+                mainOutlet: mainOutlet
+            )
+            let tutorialPenalty = validation.penalty + tutorialComplexityPenalty(level: level, tutorialLevel: levelNumber)
+
+            if tutorialPenalty < bestPenalty {
+                bestPenalty = tutorialPenalty
+                bestLevel = level
+            }
+
+            if validation.isValid, tutorialPenalty <= profile.targetPenalty {
+                return level
+            }
+
+            candidateSeed = nextSeed(from: candidateSeed)
+        }
+
+        if let bestLevel {
+            return bestLevel
+        }
+        return buildLevel(inlets: inlets, seed: layoutSeed, profile: profile)
+    }
+
+    func tutorialProfile(for levelNumber: Int) -> GenerationProfile {
+        switch levelNumber {
+        case 1...2:
+            return adjustedProfile(
+                LevelDifficulty.easy.profile,
+                attemptCount: 120,
+                targetPenalty: 2.30,
+                rowJitter: 0.002,
+                loopChance: 12,
+                secondLoopChance: 0,
+                detourChance: 0,
+                loopSpan: 0.14,
+                detourSpan: 0.11,
+                pushAwayFromInlet: 0.18,
+                pushAwayChain: 0.18,
+                joinVariance: 0.010
+            )
+        case 3...4:
+            return adjustedProfile(
+                LevelDifficulty.easy.profile,
+                attemptCount: 124,
+                targetPenalty: 2.45,
+                rowJitter: 0.0025,
+                loopChance: 22,
+                secondLoopChance: 6,
+                detourChance: 6,
+                loopSpan: 0.15,
+                detourSpan: 0.12,
+                pushAwayFromInlet: 0.16,
+                pushAwayChain: 0.17,
+                joinVariance: 0.012
+            )
+        case 5...6:
+            return adjustedProfile(
+                LevelDifficulty.easy.profile,
+                attemptCount: 128,
+                targetPenalty: 2.60,
+                rowJitter: 0.003,
+                loopChance: 36,
+                secondLoopChance: 12,
+                detourChance: 10,
+                loopSpan: 0.16,
+                detourSpan: 0.12,
+                pushAwayFromInlet: 0.14,
+                pushAwayChain: 0.15,
+                joinVariance: 0.014
+            )
+        case 7...8:
+            return adjustedProfile(
+                LevelDifficulty.normal.profile,
+                attemptCount: 132,
+                targetPenalty: 2.90,
+                rowJitter: 0.0035,
+                loopChance: 46,
+                secondLoopChance: 18,
+                detourChance: 18,
+                loopSpan: 0.16,
+                detourSpan: 0.13,
+                pushAwayFromInlet: 0.12,
+                pushAwayChain: 0.13,
+                joinVariance: 0.018
+            )
+        default:
+            return adjustedProfile(
+                LevelDifficulty.normal.profile,
+                attemptCount: 136,
+                targetPenalty: 3.10,
+                rowJitter: 0.0038,
+                loopChance: 56,
+                secondLoopChance: 26,
+                detourChance: 24,
+                loopSpan: 0.17,
+                detourSpan: 0.14,
+                pushAwayFromInlet: 0.11,
+                pushAwayChain: 0.12,
+                joinVariance: 0.020
+            )
+        }
+    }
+
+    func tutorialComplexityPenalty(level: MazeLevel, tutorialLevel: Int) -> CGFloat {
+        let totalPoints = level.pipes.reduce(0) { $0 + $1.points.count }
+        let averagePoints = CGFloat(totalPoints) / CGFloat(max(level.pipes.count, 1))
+        let targetRange: ClosedRange<CGFloat>
+
+        switch tutorialLevel {
+        case 1...2:
+            targetRange = 8.0...12.5
+        case 3...4:
+            targetRange = 9.5...14.0
+        case 5...6:
+            targetRange = 11.0...16.0
+        case 7...8:
+            targetRange = 12.5...18.5
+        default:
+            targetRange = 14.0...21.0
+        }
+
+        var penalty: CGFloat = 0
+        if averagePoints < targetRange.lowerBound {
+            penalty += (targetRange.lowerBound - averagePoints) * 1.6
+        }
+        if averagePoints > targetRange.upperBound {
+            penalty += (averagePoints - targetRange.upperBound) * 1.1
+        }
+        return penalty
+    }
+
+    func adjustedProfile(
+        _ base: GenerationProfile,
+        attemptCount: Int,
+        targetPenalty: CGFloat,
+        rowJitter: CGFloat,
+        loopChance: Int,
+        secondLoopChance: Int,
+        detourChance: Int,
+        loopSpan: CGFloat,
+        detourSpan: CGFloat,
+        pushAwayFromInlet: CGFloat,
+        pushAwayChain: CGFloat,
+        joinVariance: CGFloat
+    ) -> GenerationProfile {
+        GenerationProfile(
+            attemptCount: attemptCount,
+            targetPenalty: targetPenalty,
+            upperRows: base.upperRows,
+            middleRows: base.middleRows,
+            lowerRows: base.lowerRows,
+            turnCols: base.turnCols,
+            crossCols: base.crossCols,
+            loopCols: base.loopCols,
+            bottomRows: base.bottomRows,
+            rowJitter: rowJitter,
+            upperToMiddleGap: base.upperToMiddleGap,
+            middleToLowerGap: base.middleToLowerGap,
+            loopChance: loopChance,
+            secondLoopChance: secondLoopChance,
+            detourChance: detourChance,
+            loopSpan: loopSpan,
+            detourSpan: detourSpan,
+            pushAwayFromInlet: pushAwayFromInlet,
+            pushAwayChain: pushAwayChain,
+            joinVariance: joinVariance
+        )
+    }
+
+    func duplicationPenalty(for level: MazeLevel, levelNumber: Int) -> CGFloat {
+        guard levelNumber >= 11 else { return 0 }
+        guard !Self.recentFootprints.isEmpty else { return 0 }
+
+        let footprint = makeFootprint(for: level, levelNumber: levelNumber)
+        let recent = Self.recentFootprints.suffix(6)
+        var penalty: CGFloat = 0
+
+        for previous in recent {
+            let similarity = jaccard(footprint.cells, previous.cells)
+            if similarity > 0.82 {
+                penalty += 20 + (similarity - 0.82) * 40
+            } else if similarity > 0.72 {
+                penalty += (similarity - 0.72) * 16
+            } else if similarity > 0.66, footprint.correctInlet == previous.correctInlet {
+                penalty += 0.35
+            }
+        }
+
+        return penalty
+    }
+
+    func rememberRecentFootprint(for level: MazeLevel, levelNumber: Int) {
+        guard levelNumber >= 11 else { return }
+        let footprint = makeFootprint(for: level, levelNumber: levelNumber)
+
+        if let last = Self.recentFootprints.last,
+           last.levelNumber == footprint.levelNumber,
+           jaccard(last.cells, footprint.cells) > 0.995,
+           last.correctInlet == footprint.correctInlet {
+            return
+        }
+
+        Self.recentFootprints.append(footprint)
+        if Self.recentFootprints.count > 18 {
+            Self.recentFootprints.removeFirst(Self.recentFootprints.count - 18)
+        }
+    }
+
+    private func makeFootprint(for level: MazeLevel, levelNumber: Int) -> LevelFootprint {
+        let cols = 10
+        let rows = 13
+        var cells: Set<Int> = []
+
+        for pipe in level.pipes {
+            guard pipe.points.count > 1 else { continue }
+            for idx in 1..<pipe.points.count {
+                let a = pipe.points[idx - 1]
+                let b = pipe.points[idx]
+                let length = max(hypot(b.x - a.x, b.y - a.y), 0.0001)
+                let steps = max(Int(ceil(length / 0.02)), 1)
+                for step in 0...steps {
+                    let t = CGFloat(step) / CGFloat(steps)
+                    let point = CGPoint(
+                        x: a.x + (b.x - a.x) * t,
+                        y: a.y + (b.y - a.y) * t
+                    )
+                    guard point.x >= 0.04, point.x <= 0.96,
+                          point.y >= 0.20, point.y <= 0.90 else { continue }
+                    let xNorm = (point.x - 0.04) / 0.92
+                    let yNorm = (point.y - 0.20) / 0.70
+                    let xIdx = min(max(Int((xNorm * CGFloat(cols)).rounded(.down)), 0), cols - 1)
+                    let yIdx = min(max(Int((yNorm * CGFloat(rows)).rounded(.down)), 0), rows - 1)
+                    cells.insert(yIdx * cols + xIdx)
+                }
+            }
+        }
+
+        return LevelFootprint(levelNumber: levelNumber, correctInlet: level.correctPipeID, cells: cells)
+    }
+
+    func jaccard(_ lhs: Set<Int>, _ rhs: Set<Int>) -> CGFloat {
+        if lhs.isEmpty && rhs.isEmpty { return 1 }
+        let inter = lhs.intersection(rhs).count
+        let union = lhs.union(rhs).count
+        guard union > 0 else { return 0 }
+        return CGFloat(inter) / CGFloat(union)
+    }
+
     func buildLevel(inlets: [CGPoint], seed: UInt64, profile: GenerationProfile) -> MazeLevel {
         var rng = RNG(state: max(seed, 1))
 
