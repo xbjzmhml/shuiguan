@@ -1,6 +1,116 @@
 import CoreGraphics
 import Foundation
 
+private enum LevelDifficulty {
+    case easy
+    case normal
+    case hard
+
+    static func forLevel(_ levelNumber: Int) -> LevelDifficulty {
+        switch max(levelNumber, 1) {
+        case 1...8:
+            return .easy
+        case 9...24:
+            return .normal
+        default:
+            return .hard
+        }
+    }
+
+    var profile: GenerationProfile {
+        switch self {
+        case .easy:
+            return GenerationProfile(
+                attemptCount: 48,
+                upperRows: [0.30, 0.33, 0.36, 0.39, 0.42, 0.45],
+                middleRows: [0.50, 0.54, 0.58, 0.62, 0.64, 0.60],
+                lowerRows: [0.70, 0.73, 0.76, 0.79, 0.82, 0.78],
+                turnCols: [0.14, 0.26, 0.38, 0.62, 0.74, 0.86],
+                crossCols: [0.18, 0.30, 0.42, 0.58, 0.70, 0.82],
+                loopCols: [0.12, 0.24, 0.36, 0.64, 0.76, 0.88],
+                bottomRows: [0.835, 0.848, 0.862, 0.878, 0.888, 0.852],
+                rowJitter: 0.003,
+                upperToMiddleGap: 0.13,
+                middleToLowerGap: 0.12,
+                loopChance: 40,
+                secondLoopChance: 14,
+                detourChance: 12,
+                loopSpan: 0.15,
+                detourSpan: 0.12,
+                pushAwayFromInlet: 0.13,
+                pushAwayChain: 0.14,
+                joinVariance: 0.018
+            )
+        case .normal:
+            return GenerationProfile(
+                attemptCount: 60,
+                upperRows: [0.30, 0.33, 0.36, 0.39, 0.42, 0.45],
+                middleRows: [0.50, 0.53, 0.56, 0.59, 0.62, 0.65],
+                lowerRows: [0.68, 0.71, 0.74, 0.77, 0.79, 0.81],
+                turnCols: [0.14, 0.24, 0.34, 0.66, 0.76, 0.86],
+                crossCols: [0.18, 0.29, 0.40, 0.60, 0.71, 0.82],
+                loopCols: [0.12, 0.26, 0.38, 0.62, 0.74, 0.88],
+                bottomRows: [0.83, 0.845, 0.86, 0.875, 0.89, 0.84],
+                rowJitter: 0.004,
+                upperToMiddleGap: 0.12,
+                middleToLowerGap: 0.11,
+                loopChance: 70,
+                secondLoopChance: 36,
+                detourChance: 30,
+                loopSpan: 0.17,
+                detourSpan: 0.14,
+                pushAwayFromInlet: 0.11,
+                pushAwayChain: 0.12,
+                joinVariance: 0.025
+            )
+        case .hard:
+            return GenerationProfile(
+                attemptCount: 76,
+                upperRows: [0.29, 0.32, 0.35, 0.38, 0.41, 0.44],
+                middleRows: [0.48, 0.52, 0.55, 0.58, 0.61, 0.64],
+                lowerRows: [0.67, 0.70, 0.73, 0.76, 0.79, 0.82],
+                turnCols: [0.12, 0.22, 0.34, 0.66, 0.78, 0.88],
+                crossCols: [0.16, 0.28, 0.40, 0.60, 0.72, 0.84],
+                loopCols: [0.10, 0.24, 0.38, 0.62, 0.76, 0.90],
+                bottomRows: [0.828, 0.842, 0.856, 0.870, 0.886, 0.898],
+                rowJitter: 0.006,
+                upperToMiddleGap: 0.105,
+                middleToLowerGap: 0.102,
+                loopChance: 84,
+                secondLoopChance: 60,
+                detourChance: 52,
+                loopSpan: 0.20,
+                detourSpan: 0.16,
+                pushAwayFromInlet: 0.09,
+                pushAwayChain: 0.10,
+                joinVariance: 0.03
+            )
+        }
+    }
+}
+
+private struct GenerationProfile {
+    let attemptCount: Int
+    let upperRows: [CGFloat]
+    let middleRows: [CGFloat]
+    let lowerRows: [CGFloat]
+    let turnCols: [CGFloat]
+    let crossCols: [CGFloat]
+    let loopCols: [CGFloat]
+    let bottomRows: [CGFloat]
+    let rowJitter: CGFloat
+    let upperToMiddleGap: CGFloat
+    let middleToLowerGap: CGFloat
+    let loopChance: Int
+    let secondLoopChance: Int
+    let detourChance: Int
+    let loopSpan: CGFloat
+    let detourSpan: CGFloat
+    let pushAwayFromInlet: CGFloat
+    let pushAwayChain: CGFloat
+    let joinVariance: CGFloat
+}
+
 struct LevelGenerator {
     let inletCount: Int
     private let validator = LevelValidator()
@@ -28,16 +138,18 @@ struct LevelGenerator {
         return max(x, 1)
     }
 
-    func generate(seed: UInt64) -> (inlets: [CGPoint], level: MazeLevel, resolvedSeed: UInt64) {
+    func generate(seed: UInt64, levelNumber: Int = 1) -> (inlets: [CGPoint], level: MazeLevel, resolvedSeed: UInt64) {
         let inlets = inletPositions()
+        let difficulty = LevelDifficulty.forLevel(levelNumber)
+        let profile = difficulty.profile
         var candidateSeed = max(seed, 1)
         let mainOutlet = CGPoint(x: 0.5, y: 0.93)
         var bestLevel: MazeLevel?
         var bestSeed: UInt64 = candidateSeed
         var bestPenalty: CGFloat = .greatestFiniteMagnitude
 
-        for _ in 0..<60 {
-            let level = buildLevel(inlets: inlets, seed: candidateSeed)
+        for _ in 0..<profile.attemptCount {
+            let level = buildLevel(inlets: inlets, seed: candidateSeed, profile: profile)
             let result = validator.evaluate(
                 level: level,
                 inletCount: inletCount,
@@ -60,12 +172,12 @@ struct LevelGenerator {
         if let bestLevel {
             return (inlets, bestLevel, bestSeed)
         }
-        return (inlets, buildLevel(inlets: inlets, seed: candidateSeed), candidateSeed)
+        return (inlets, buildLevel(inlets: inlets, seed: candidateSeed, profile: profile), candidateSeed)
     }
 }
 
 private extension LevelGenerator {
-    func buildLevel(inlets: [CGPoint], seed: UInt64) -> MazeLevel {
+    func buildLevel(inlets: [CGPoint], seed: UInt64, profile: GenerationProfile) -> MazeLevel {
         var rng = RNG(state: max(seed, 1))
 
         let outletY: CGFloat = 0.93
@@ -84,13 +196,13 @@ private extension LevelGenerator {
         rng.shuffle(&wrongOutlets)
         var wrongOutletCursor = 0
 
-        var upperRows: [CGFloat] = [0.30, 0.33, 0.36, 0.39, 0.42, 0.45]
-        var middleRows: [CGFloat] = [0.50, 0.53, 0.56, 0.59, 0.62, 0.65]
-        var lowerRows: [CGFloat] = [0.68, 0.71, 0.74, 0.77, 0.79, 0.81]
-        var turnCols: [CGFloat] = [0.14, 0.24, 0.34, 0.66, 0.76, 0.86]
-        var crossCols: [CGFloat] = [0.18, 0.29, 0.40, 0.60, 0.71, 0.82]
-        var loopCols: [CGFloat] = [0.12, 0.26, 0.38, 0.62, 0.74, 0.88]
-        var bottomRows: [CGFloat] = [0.83, 0.845, 0.86, 0.875, 0.89, 0.84]
+        var upperRows = profile.upperRows
+        var middleRows = profile.middleRows
+        var lowerRows = profile.lowerRows
+        var turnCols = profile.turnCols
+        var crossCols = profile.crossCols
+        var loopCols = profile.loopCols
+        var bottomRows = profile.bottomRows
 
         rng.shuffle(&upperRows)
         rng.shuffle(&middleRows)
@@ -118,44 +230,65 @@ private extension LevelGenerator {
             let pipeStartY = clampY(funnelBottomY - 0.004)
             let pipeNeckY = clampY(funnelBottomY + 0.048)
 
-            let yUpper = clampY(upperRows[i % upperRows.count] + rng.nextCGFloat(in: -0.004...0.004))
-            let yMiddle = clampY(max(yUpper + 0.12, middleRows[i % middleRows.count] + rng.nextCGFloat(in: -0.004...0.004)))
-            let yLower = clampY(max(yMiddle + 0.11, lowerRows[i % lowerRows.count] + rng.nextCGFloat(in: -0.004...0.004)))
+            let yUpper = clampY(upperRows[i % upperRows.count] + rng.nextCGFloat(in: -profile.rowJitter...profile.rowJitter))
+            let yMiddle = clampY(max(yUpper + profile.upperToMiddleGap, middleRows[i % middleRows.count] + rng.nextCGFloat(in: -profile.rowJitter...profile.rowJitter)))
+            let yLower = clampY(max(yMiddle + profile.middleToLowerGap, lowerRows[i % lowerRows.count] + rng.nextCGFloat(in: -profile.rowJitter...profile.rowJitter)))
 
             var xTurn = turnCols[i % turnCols.count]
             var xCross = crossCols[i % crossCols.count]
             var xLoop = loopCols[i % loopCols.count]
 
-            xTurn = pushAway(xTurn, from: inlet.x, amount: 0.11)
-            xCross = pushAway(xCross, from: xTurn, amount: 0.12)
-            xLoop = pushAway(xLoop, from: xCross, amount: 0.11)
+            xTurn = pushAway(xTurn, from: inlet.x, amount: profile.pushAwayFromInlet)
+            xCross = pushAway(xCross, from: xTurn, amount: profile.pushAwayChain)
+            xLoop = pushAway(xLoop, from: xCross, amount: profile.pushAwayChain)
 
             points.append(CGPoint(x: inlet.x, y: pipeStartY))
             points.append(CGPoint(x: inlet.x, y: pipeNeckY))
             points.append(CGPoint(x: inlet.x, y: 0.205))
             points.append(CGPoint(x: inlet.x, y: yUpper))
             points.append(CGPoint(x: xTurn, y: yUpper))
+
+            if rng.nextInt(100) < profile.detourChance {
+                let detourY = clampY(yUpper - rng.nextCGFloat(in: 0.05...0.1))
+                let detourX = clampX(xTurn + (xTurn < 0.5 ? profile.detourSpan : -profile.detourSpan) + rng.nextCGFloat(in: -0.02...0.02))
+                let returnY = clampY(yUpper + rng.nextCGFloat(in: 0.015...0.03))
+                points.append(CGPoint(x: xTurn, y: detourY))
+                points.append(CGPoint(x: detourX, y: detourY))
+                points.append(CGPoint(x: detourX, y: returnY))
+                points.append(CGPoint(x: xTurn, y: returnY))
+            }
+
             points.append(CGPoint(x: xTurn, y: yMiddle))
             points.append(CGPoint(x: xCross, y: yMiddle))
             points.append(CGPoint(x: xCross, y: yLower))
             points.append(CGPoint(x: xLoop, y: yLower))
 
-            if rng.nextInt(100) < 75 {
+            if rng.nextInt(100) < profile.loopChance {
                 let loopY1 = clampY((yUpper + yMiddle) * 0.5 + rng.nextCGFloat(in: -0.01...0.01))
                 let loopY2 = clampY((yMiddle + yLower) * 0.5 + rng.nextCGFloat(in: -0.01...0.01))
-                let xWide = clampX(xLoop + (xLoop < 0.5 ? 0.17 : -0.17) + rng.nextCGFloat(in: -0.02...0.02))
+                let xWide = clampX(xLoop + (xLoop < 0.5 ? profile.loopSpan : -profile.loopSpan) + rng.nextCGFloat(in: -0.02...0.02))
 
                 points.append(CGPoint(x: xLoop, y: loopY1))
                 points.append(CGPoint(x: xWide, y: loopY1))
                 points.append(CGPoint(x: xWide, y: loopY2))
                 points.append(CGPoint(x: xCross, y: loopY2))
+
+                if rng.nextInt(100) < profile.secondLoopChance {
+                    let loopY3 = clampY(loopY2 + rng.nextCGFloat(in: 0.03...0.06))
+                    let loopY4 = clampY(loopY3 + rng.nextCGFloat(in: 0.03...0.06))
+                    let xBounce = clampX(xCross + (xCross < 0.5 ? profile.loopSpan * 0.9 : -profile.loopSpan * 0.9) + rng.nextCGFloat(in: -0.02...0.02))
+                    points.append(CGPoint(x: xCross, y: loopY3))
+                    points.append(CGPoint(x: xBounce, y: loopY3))
+                    points.append(CGPoint(x: xBounce, y: loopY4))
+                    points.append(CGPoint(x: xLoop, y: loopY4))
+                }
             }
 
             let isCorrect = (i == correctIndex)
             var wrongOutlet: CGPoint? = nil
 
             if isCorrect {
-                let joinX = clampX(0.5 + rng.nextCGFloat(in: -0.025...0.025))
+                let joinX = clampX(0.5 + rng.nextCGFloat(in: -profile.joinVariance...profile.joinVariance))
                 points.append(CGPoint(x: joinX, y: 0.835))
                 points.append(CGPoint(x: 0.5, y: 0.865))
                 points.append(CGPoint(x: 0.5, y: outletY))

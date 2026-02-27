@@ -3,11 +3,16 @@ import SwiftUI
 struct GameView: View {
     @StateObject private var gameState = GameState()
     private let generator = LevelGenerator(inletCount: 6)
+#if DEBUG
+    @AppStorage("showDebugHUD") private var showDebugHUD = false
+#else
+    private let showDebugHUD = false
+#endif
 
     var body: some View {
         GeometryReader { proxy in
             let size = proxy.size
-            let generated = generator.generate(seed: gameState.levelSeed)
+            let generated = generator.generate(seed: gameState.levelSeed, levelNumber: gameState.levelNumber)
             let inlets = generated.inlets
             let level = generated.level
             let resolvedSeed = generated.resolvedSeed
@@ -46,17 +51,25 @@ struct GameView: View {
                 }
 
                 livesPanel(size: size)
-                answerHintPanel(size: size, correctFunnelID: level.correctPipeID)
-                progressDebugPanel(size: size)
+                if showDebugHUD {
+                    answerHintPanel(size: size, correctFunnelID: level.correctPipeID)
+                    progressDebugPanel(size: size)
+                }
 
-                Text("MAZE v32")
+                Text("MAZE v34")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(Color.white.opacity(0.7))
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
                     .background(Color.black.opacity(0.25), in: Capsule())
                     .position(x: size.width * 0.15, y: size.height * 0.12)
+#if DEBUG
+                    .onLongPressGesture(minimumDuration: 0.8) {
+                        showDebugHUD.toggle()
+                    }
+#else
                     .allowsHitTesting(false)
+#endif
             }
             .contentShape(Rectangle())
             .onTapGesture {
