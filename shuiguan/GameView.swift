@@ -4,7 +4,7 @@ struct GameView: View {
     @StateObject private var gameState = GameState()
     private let generator = LevelGenerator(inletCount: 6)
 #if DEBUG
-    @AppStorage("showDebugHUD") private var showDebugHUD = false
+    @State private var showDebugHUD = false
 #else
     private let showDebugHUD = false
 #endif
@@ -56,7 +56,7 @@ struct GameView: View {
                     progressDebugPanel(size: size)
                 }
 
-                Text("MAZE v34")
+                Text("MAZE v36")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(Color.white.opacity(0.7))
                     .padding(.horizontal, 10)
@@ -348,7 +348,7 @@ private extension GameView {
         let outOfLives = !success && gameState.lives == 0
         let title: String = {
             if success { return "通关成功" }
-            if outOfLives { return "水杯用完，回到第一关" }
+            if outOfLives { return "水杯用完，回到第 \(gameState.checkpointLevel) 关" }
             return "失败，扣 1 杯水"
         }()
         let buttonTitle: String = {
@@ -358,7 +358,7 @@ private extension GameView {
         }()
         let subtitle: String = {
             if success { return "连中 \(gameState.streak)" }
-            if outOfLives { return "已重置到第一关" }
+            if outOfLives { return "已回退到第 \(gameState.checkpointLevel) 关" }
             return "剩余水杯 \(gameState.lives)/\(gameState.maxLives)"
         }()
 
