@@ -181,6 +181,7 @@ final class GameState: ObservableObject {
         phase = lastResultCorrect ? .success : .fail
         if lastResultCorrect {
             lastEarnedStars = awardedStarsForCurrentRound()
+            updateBestStars(for: levelNumber, earned: lastEarnedStars)
             streak += 1
             triggerPraiseIfNeeded()
         } else {
@@ -211,10 +212,6 @@ final class GameState: ObservableObject {
         guard phase == .result else { return }
 
         if lastResultCorrect {
-            let completedLevel = levelNumber
-            let earnedStars = max(lastEarnedStars, awardedStarsForCurrentRound())
-            updateBestStars(for: completedLevel, earned: earnedStars)
-
             let nextLevel = levelNumber + 1
             if let gate = gateInfoForAccessingLevel(nextLevel), !gate.isUnlocked {
                 applyChapterLock(gate)

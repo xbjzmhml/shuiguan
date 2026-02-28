@@ -8,6 +8,13 @@ struct GameView: View {
 #else
     private let showDebugHUD = false
 #endif
+    @State private var successPulseID = UUID()
+    @State private var wrongOutletFlashPipeID: Int?
+    @State private var wrongOutletFlashPulse = false
+    @State private var livesShakeTick: CGFloat = 0
+    @State private var lostCupIndex: Int?
+    @State private var lostCupDropping = false
+    @State private var activeStarBurst: StarBurst?
 
     var body: some View {
         GeometryReader { proxy in
@@ -25,8 +32,22 @@ struct GameView: View {
                 pipesLayer(pipes: pipes, size: size, pipeWidth: pipeWidth)
                 waterLayer(pipes: pipes, size: size, pipeWidth: pipeWidth)
 
-                outletMarkers(pipes: pipes, size: size)
-                outletGlow(size: size, isActive: gameState.lastResultCorrect && gameState.waterProgress > 0.97)
+                outletMarkers(
+                    pipes: pipes,
+                    size: size,
+                    flashingPipeID: wrongOutletFlashPipeID,
+                    flashPulse: wrongOutletFlashPulse
+                )
+                outletGlow(
+                    size: size,
+                    isActive: gameState.lastResultCorrect && gameState.waterProgress > 0.97,
+                    successPulseID: successPulseID
+                )
+
+                if let burst = activeStarBurst {
+                    FlyingStarsOverlay(burst: burst)
+                        .allowsHitTesting(false)
+                }
 
                 funnelsRow(
                     inlets: inlets,
@@ -67,7 +88,7 @@ struct GameView: View {
                     }
                 }
 
-                Text("MAZE v40")
+                Text("MAZE v41")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(Color.white.opacity(0.7))
                     .padding(.horizontal, 10)
@@ -83,6 +104,9 @@ struct GameView: View {
 #endif
             }
             .contentShape(Rectangle())
+            .onChange(of: gameState.phase) { _, phase in
+                handlePhaseChange(phase, pipes: pipes, size: size)
+            }
             .onTapGesture {
                 guard gameState.phase == .result else { return }
                 let nextSeed = generator.nextSeed(from: resolvedSeed)
@@ -237,7 +261,7 @@ private extension GameView {
         }
     }
 
-    func outletGlow(size: CGSize, isActive: Bool) -> some View {
+    func outletGlow(size: CGSize, isActive: Bool, successPulseID: UUID) -> some View {
         let center = CGPoint(x: size.width * 0.5, y: size.height * 0.93)
 
         return ZStack {
@@ -256,20 +280,50 @@ private extension GameView {
                 .stroke(Color.white.opacity(0.62), lineWidth: 2)
                 .frame(width: size.width * 0.1, height: size.width * 0.1)
                 .position(center)
+
+            SuccessOutletPulseView()
+                .frame(width: size.width * 0.22, height: size.width * 0.22)
+                .position(center)
+                .id(successPulseID)
         }
         .allowsHitTesting(false)
     }
 
-    func outletMarkers(pipes: [Pipe], size: CGSize) -> some View {
+    func outletMarkers(
+        pipes: [Pipe],
+        size: CGSize,
+        flashingPipeID: Int?,
+        flashPulse: Bool
+    ) -> some View {
         ZStack {
             ForEach(pipes.filter { !$0.isCorrect }, id: \.id) { pipe in
                 if let outlet = pipe.wrongOutlet {
                     let p = scale(outlet, size: size)
-                    Circle()
-                        .fill(Color.white.opacity(0.34))
-                        .frame(width: size.width * 0.035, height: size.width * 0.035)
-                        .overlay(Circle().stroke(Color.white.opacity(0.58), lineWidth: 1))
-                        .position(p)
+                    ZStack {
+                        Circle()
+                            .fill(Color.white.opacity(0.34))
+                            .frame(width: size.width * 0.035, height: size.width * 0.035)
+                            .overlay(Circle().stroke(Color.white.opacity(0.58), lineWidth: 1))
+
+                        if flashingPipeID == pipe.id {
+                            Circle()
+                                .stroke(
+                                    Color(red: 1.0, green: 0.45, blue: 0.4, opacity: flashPulse ? 0.95 : 0.4),
+                                    lineWidth: flashPulse ? 4 : 2
+                                )
+                                .frame(
+                                    width: size.width * (flashPulse ? 0.075 : 0.048),
+                                    height: size.width * (flashPulse ? 0.075 : 0.048)
+                                )
+                                .shadow(
+                                    color: Color(red: 1.0, green: 0.4, blue: 0.35, opacity: 0.75),
+                                    radius: 10,
+                                    x: 0,
+                                    y: 0
+                                )
+                        }
+                    }
+                    .position(p)
                 }
             }
         }
@@ -313,12 +367,27 @@ private extension GameView {
             ForEach(0..<gameState.maxLives, id: \.self) { idx in
                 WaterCupView(isFilled: idx < gameState.lives)
                     .frame(width: size.width * 0.055, height: size.height * 0.05)
+                    .scaleEffect(idx == lostCupIndex && lostCupDropping ? 0.88 : 1)
+                    .rotationEffect(.degrees(idx == lostCupIndex && lostCupDropping ? -14 : 0))
+                    .offset(y: idx == lostCupIndex && lostCupDropping ? 9 : 0)
+                    .overlay {
+                        if idx == lostCupIndex {
+                            RoundedRectangle(cornerRadius: size.width * 0.02, style: .continuous)
+                                .stroke(
+                                    Color(red: 1.0, green: 0.48, blue: 0.42, opacity: lostCupDropping ? 0.9 : 0.45),
+                                    lineWidth: 2
+                                )
+                                .blur(radius: lostCupDropping ? 0 : 1)
+                        }
+                    }
+                    .opacity(idx == lostCupIndex && lostCupDropping ? 0.6 : 1)
             }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .background(Color.black.opacity(0.25), in: Capsule())
         .position(x: size.width * 0.18, y: size.height * 0.958)
+        .modifier(ShakeEffect(animatableData: livesShakeTick))
         .allowsHitTesting(false)
     }
 
@@ -389,6 +458,65 @@ private extension GameView {
         PraiseOverlayView(banner: banner)
             .position(x: size.width * 0.5, y: size.height * 0.22)
             .allowsHitTesting(false)
+    }
+
+    func handlePhaseChange(_ phase: RoundPhase, pipes: [Pipe], size: CGSize) {
+        switch phase {
+        case .success:
+            playSuccessFeedback(size: size)
+        case .fail:
+            playFailureFeedback()
+        default:
+            break
+        }
+    }
+
+    func playSuccessFeedback(size: CGSize) {
+        successPulseID = UUID()
+        let outletCenter = CGPoint(x: size.width * 0.5, y: size.height * 0.93)
+        let hudCenter = CGPoint(x: size.width * 0.82, y: size.height * 0.955)
+        activeStarBurst = StarBurst(
+            count: max(gameState.lastEarnedStars, 1),
+            start: outletCenter,
+            destination: hudCenter
+        )
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_350_000_000)
+            activeStarBurst = nil
+        }
+    }
+
+    func playFailureFeedback() {
+        if let activeID = gameState.activePipeID {
+            wrongOutletFlashPipeID = activeID
+            withAnimation(.easeOut(duration: 0.18)) {
+                wrongOutletFlashPulse = true
+            }
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 520_000_000)
+                wrongOutletFlashPulse = false
+                try? await Task.sleep(nanoseconds: 220_000_000)
+                if wrongOutletFlashPipeID == activeID {
+                    wrongOutletFlashPipeID = nil
+                }
+            }
+        }
+
+        let lostIndex = min(max(gameState.lives, 0), gameState.maxLives - 1)
+        lostCupIndex = lostIndex
+        lostCupDropping = false
+        livesShakeTick += 1
+
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.58)) {
+            lostCupDropping = true
+        }
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 650_000_000)
+            lostCupDropping = false
+            lostCupIndex = nil
+        }
     }
 
     func chapterLockPanel(
@@ -648,5 +776,90 @@ private struct PraiseOverlayView: View {
                     appeared = true
                 }
             }
+    }
+}
+
+private struct StarBurst: Identifiable {
+    let id = UUID()
+    let count: Int
+    let start: CGPoint
+    let destination: CGPoint
+}
+
+private struct FlyingStarsOverlay: View {
+    let burst: StarBurst
+    @State private var started = false
+
+    var body: some View {
+        ZStack {
+            ForEach(0..<burst.count, id: \.self) { index in
+                let delay = Double(index) * 0.08
+                let xOffset = CGFloat(index - max(burst.count - 1, 0) / 2) * 18
+                let yOffset = CGFloat(index % 2 == 0 ? -10 : 8)
+
+                Image(systemName: "star.fill")
+                    .font(.system(size: 18, weight: .black))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 1.0, green: 0.95, blue: 0.74),
+                                Color(red: 1.0, green: 0.77, blue: 0.22)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .shadow(color: Color(red: 1.0, green: 0.82, blue: 0.3, opacity: 0.85), radius: 10)
+                    .scaleEffect(started ? 0.52 : 1.25)
+                    .opacity(started ? 0.05 : 1)
+                    .position(
+                        x: started ? burst.destination.x + xOffset : burst.start.x,
+                        y: started ? burst.destination.y + yOffset : burst.start.y
+                    )
+                    .animation(
+                        .spring(response: 0.62, dampingFraction: 0.76)
+                            .delay(delay),
+                        value: started
+                    )
+            }
+        }
+        .onAppear {
+            started = false
+            withAnimation(.spring(response: 0.62, dampingFraction: 0.76)) {
+                started = true
+            }
+        }
+    }
+}
+
+private struct SuccessOutletPulseView: View {
+    @State private var animate = false
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(Color(red: 0.68, green: 1.0, blue: 0.85, opacity: 0.7), lineWidth: 5)
+                .scaleEffect(animate ? 1.35 : 0.4)
+                .opacity(animate ? 0 : 0.95)
+
+            Circle()
+                .stroke(Color.white.opacity(0.65), lineWidth: 2)
+                .scaleEffect(animate ? 1.95 : 0.7)
+                .opacity(animate ? 0 : 0.72)
+        }
+        .onAppear {
+            withAnimation(.easeOut(duration: 0.85)) {
+                animate = true
+            }
+        }
+    }
+}
+
+private struct ShakeEffect: GeometryEffect {
+    var animatableData: CGFloat
+
+    func effectValue(size: CGSize) -> ProjectionTransform {
+        let translation = 10 * sin(animatableData * .pi * 2.5)
+        return ProjectionTransform(CGAffineTransform(translationX: translation, y: 0))
     }
 }
