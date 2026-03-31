@@ -99,7 +99,7 @@ struct GameView: View {
                     showingSettings = true
                 }
 
-                Text("MAZE v42")
+                Text("MAZE v43")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(Color.white.opacity(0.7))
                     .padding(.horizontal, 10)
