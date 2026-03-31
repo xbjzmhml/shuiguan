@@ -35,6 +35,12 @@ struct ChapterLockNotice: Identifiable {
     let replayStartLevel: Int
 }
 
+struct ChapterMilestoneNotice: Identifiable {
+    let id = UUID()
+    let title: String
+    let detail: String
+}
+
 struct ChapterSummary: Identifiable {
     let id: Int
     let chapter: Int
@@ -70,6 +76,7 @@ final class GameState: ObservableObject {
     @Published private(set) var totalStars: Int = 0
     @Published private(set) var lastEarnedStars: Int = 0
     @Published private(set) var chapterLockNotice: ChapterLockNotice?
+    @Published private(set) var chapterMilestoneNotice: ChapterMilestoneNotice?
     @Published private(set) var levelMistakes: Int = 0
 
     let maxLives = 3
@@ -240,8 +247,16 @@ final class GameState: ObservableObject {
         }
     }
 
+    func starsEarned(for level: Int) -> Int {
+        bestStarsByLevel[max(level, 1)] ?? 0
+    }
+
     func dismissChapterLockNotice() {
         chapterLockNotice = nil
+    }
+
+    func dismissChapterMilestoneNotice() {
+        chapterMilestoneNotice = nil
     }
 
     func selectLevel(_ targetLevel: Int) -> Bool {
@@ -254,6 +269,7 @@ final class GameState: ObservableObject {
                 restoreReplayBaseline()
             }
             chapterLockNotice = nil
+            chapterMilestoneNotice = nil
             praiseBanner = nil
             resetRoundState()
             persistProgress()
@@ -272,6 +288,7 @@ final class GameState: ObservableObject {
         streak = 0
         levelMistakes = 0
         chapterLockNotice = nil
+        chapterMilestoneNotice = nil
         praiseBanner = nil
         resetRoundState()
         persistProgress()
@@ -280,6 +297,7 @@ final class GameState: ObservableObject {
 
     func prepareForMenu() {
         chapterLockNotice = nil
+        chapterMilestoneNotice = nil
         praiseBanner = nil
         if replayBaseline != nil {
             restoreReplayBaseline()
@@ -305,6 +323,7 @@ final class GameState: ObservableObject {
         levelMistakes = 0
         praiseBanner = nil
         chapterLockNotice = nil
+        chapterMilestoneNotice = nil
         replayBaseline = nil
         resetRoundState()
         persistProgress()
@@ -312,6 +331,7 @@ final class GameState: ObservableObject {
 
     func startPour(pipeID: Int, correctPipeID: Int) {
         chapterLockNotice = nil
+        chapterMilestoneNotice = nil
         if lives <= 0 {
             restoreFromCheckpoint()
         }
@@ -345,8 +365,15 @@ final class GameState: ObservableObject {
 
         phase = lastResultCorrect ? .success : .fail
         if lastResultCorrect {
+            let nextChapterGateBefore = chapterProgressForUnlockingChapter(currentChapter + 1)
             lastEarnedStars = awardedStarsForCurrentRound()
             updateBestStars(for: levelNumber, earned: lastEarnedStars)
+            let nextChapterGateAfter = chapterProgressForUnlockingChapter(currentChapter + 1)
+            chapterMilestoneNotice = buildChapterMilestoneNotice(
+                clearedLevel: levelNumber,
+                gateBefore: nextChapterGateBefore,
+                gateAfter: nextChapterGateAfter
+            )
             streak += 1
             triggerPraiseIfNeeded()
         } else {
@@ -452,6 +479,7 @@ final class GameState: ObservableObject {
         waterProgress = 0
         lastResultCorrect = false
         lastEarnedStars = 0
+        chapterMilestoneNotice = nil
         phase = .idle
     }
 
@@ -462,6 +490,7 @@ final class GameState: ObservableObject {
         streak = 0
         levelMistakes = 0
         chapterLockNotice = nil
+        chapterMilestoneNotice = nil
         resetRoundState()
         persistProgress()
     }
@@ -552,6 +581,41 @@ final class GameState: ObservableObject {
         return range.reduce(0) { partial, level in
             partial + (bestStarsByLevel[level] ?? 0)
         }
+    }
+
+    private func buildChapterMilestoneNotice(
+        clearedLevel: Int,
+        gateBefore: ChapterProgressInfo,
+        gateAfter: ChapterProgressInfo
+    ) -> ChapterMilestoneNotice? {
+        let chapter = Self.chapterForLevel(clearedLevel)
+        let chapterRange = Self.levelRange(for: chapter)
+
+        if clearedLevel == chapterRange.upperBound {
+            if gateAfter.isUnlocked {
+                let descriptor = LevelGenerator.chapterDescriptor(for: gateAfter.targetChapter)
+                return ChapterMilestoneNotice(
+                    title: "第\(chapter)章完成",
+                    detail: "已解锁第\(gateAfter.targetChapter)章 · \(descriptor.title)"
+                )
+            }
+
+            let remain = max(gateAfter.requiredStars - gateAfter.earnedStars, 0)
+            return ChapterMilestoneNotice(
+                title: "第\(chapter)章完成",
+                detail: "当前 \(gateAfter.earnedStars)/\(gateAfter.requiredStars) 星，再刷 \(remain) 星解锁第\(gateAfter.targetChapter)章"
+            )
+        }
+
+        if !gateBefore.isUnlocked && gateAfter.isUnlocked {
+            let descriptor = LevelGenerator.chapterDescriptor(for: gateAfter.targetChapter)
+            return ChapterMilestoneNotice(
+                title: "第\(gateAfter.targetChapter)章已解锁",
+                detail: "\(descriptor.title) 已开放，可以从首页直接进入。"
+            )
+        }
+
+        return nil
     }
 
     private func chapterProgressForUnlockingChapter(_ chapter: Int) -> ChapterProgressInfo {

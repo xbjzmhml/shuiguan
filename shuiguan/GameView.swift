@@ -5,6 +5,7 @@ struct GameView: View {
     @ObservedObject var settings: GameSettings
     let feedback: FeedbackService
     let onExit: () -> Void
+    let onShowGuide: () -> Void
     private let generator = LevelGenerator(inletCount: 6)
     @State private var successPulseID = UUID()
     @State private var wrongOutletFlashPipeID: Int?
@@ -14,6 +15,7 @@ struct GameView: View {
     @State private var lostCupDropping = false
     @State private var activeStarBurst: StarBurst?
     @State private var showingSettings = false
+    @State private var tutorialPulse = false
 
     var body: some View {
         GeometryReader { proxy in
@@ -47,6 +49,8 @@ struct GameView: View {
                     FlyingStarsOverlay(burst: burst)
                         .allowsHitTesting(false)
                 }
+
+                tutorialHintOverlay(inlets: inlets, size: size)
 
                 funnelsRow(
                     inlets: inlets,
@@ -111,11 +115,19 @@ struct GameView: View {
                     .allowsHitTesting(false)
             }
             .contentShape(Rectangle())
+            .onAppear {
+                tutorialPulse = true
+            }
             .onChange(of: gameState.phase) { _, phase in
                 handlePhaseChange(phase, pipes: pipes, size: size)
             }
             .sheet(isPresented: $showingSettings) {
-                GameSettingsSheet(settings: settings, gameState: gameState, feedback: feedback)
+                GameSettingsSheet(
+                    settings: settings,
+                    gameState: gameState,
+                    feedback: feedback,
+                    onShowGuide: onShowGuide
+                )
             }
             .onTapGesture {
                 guard gameState.phase == .result else { return }
@@ -453,6 +465,111 @@ private extension GameView {
         .position(x: size.width * 0.84, y: size.height * 0.12)
     }
 
+    @ViewBuilder
+    func tutorialHintOverlay(inlets: [CGPoint], size: CGSize) -> some View {
+        if gameState.phase == .idle,
+           gameState.levelNumber <= 3,
+           gameState.starsEarned(for: gameState.levelNumber) == 0 {
+            switch gameState.levelNumber {
+            case 1:
+                levelOneHint(inlets: inlets, size: size)
+            case 2:
+                levelTwoHint(size: size)
+            case 3:
+                levelThreeHint(size: size)
+            default:
+                EmptyView()
+            }
+        }
+    }
+
+    func levelOneHint(inlets: [CGPoint], size: CGSize) -> some View {
+        ZStack {
+            ForEach(Array(inlets.enumerated()), id: \.offset) { _, inlet in
+                Circle()
+                    .stroke(Color(red: 0.63, green: 0.97, blue: 0.98, opacity: tutorialPulse ? 0.88 : 0.35), lineWidth: tutorialPulse ? 4 : 2)
+                    .frame(width: tutorialPulse ? size.width * 0.08 : size.width * 0.06, height: tutorialPulse ? size.width * 0.08 : size.width * 0.06)
+                    .position(scale(inlet, size: size))
+            }
+
+            tutorialBubble(
+                title: "先从上方开始",
+                detail: "点任意漏斗放水，水会沿你选中的那根管子流到底。",
+                symbol: "hand.tap.fill",
+                width: min(size.width * 0.72, 310)
+            )
+            .position(x: size.width * 0.5, y: size.height * 0.20)
+        }
+        .animation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true), value: tutorialPulse)
+        .allowsHitTesting(false)
+    }
+
+    func levelTwoHint(size: CGSize) -> some View {
+        ZStack {
+            Circle()
+                .stroke(Color(red: 0.58, green: 0.96, blue: 0.90, opacity: tutorialPulse ? 0.9 : 0.42), lineWidth: tutorialPulse ? 5 : 2)
+                .frame(width: tutorialPulse ? size.width * 0.16 : size.width * 0.11, height: tutorialPulse ? size.width * 0.16 : size.width * 0.11)
+                .position(x: size.width * 0.5, y: size.height * 0.93)
+
+            tutorialBubble(
+                title: "看清最终出口",
+                detail: "观察拐弯和交叉，只有最后流进下方主管的入口才算选对。",
+                symbol: "arrow.triangle.branch",
+                width: min(size.width * 0.78, 340)
+            )
+            .position(x: size.width * 0.5, y: size.height * 0.23)
+        }
+        .animation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true), value: tutorialPulse)
+        .allowsHitTesting(false)
+    }
+
+    func levelThreeHint(size: CGSize) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color(red: 1.0, green: 0.76, blue: 0.42, opacity: tutorialPulse ? 0.92 : 0.36), lineWidth: tutorialPulse ? 4 : 2)
+                .frame(width: size.width * 0.28, height: size.height * 0.07)
+                .position(x: size.width * 0.18, y: size.height * 0.958)
+
+            tutorialBubble(
+                title: "选错会扣水杯",
+                detail: "每次失误扣 1 杯水，3 杯用完就会退回最近的检查点重来。",
+                symbol: "drop.triangle.fill",
+                width: min(size.width * 0.78, 340)
+            )
+            .position(x: size.width * 0.56, y: size.height * 0.82)
+        }
+        .animation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true), value: tutorialPulse)
+        .allowsHitTesting(false)
+    }
+
+    func tutorialBubble(title: String, detail: String, symbol: String, width: CGFloat) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: symbol)
+                .font(.system(size: 17, weight: .bold))
+                .foregroundStyle(Color(red: 0.58, green: 0.96, blue: 0.90))
+                .frame(width: 22)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(Color.white.opacity(0.96))
+
+                Text(detail)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color.white.opacity(0.74))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(width: width, alignment: .leading)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(Color.black.opacity(0.45), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+        )
+    }
+
     func replayBadge(size: CGSize) -> some View {
         Text("回放模式")
             .font(.system(size: 12, weight: .bold))
@@ -650,6 +767,29 @@ private extension GameView {
             Text(subtitle)
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(Color.white.opacity(0.75))
+
+            if success, let milestone = gameState.chapterMilestoneNotice {
+                VStack(spacing: 4) {
+                    Text(milestone.title)
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Color.white.opacity(0.96))
+
+                    Text(milestone.detail)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Color.white.opacity(0.72))
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(
+                    Color(red: 0.20, green: 0.46, blue: 0.62, opacity: 0.34),
+                    in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                )
+            }
 
             if success {
                 HStack(spacing: 7) {

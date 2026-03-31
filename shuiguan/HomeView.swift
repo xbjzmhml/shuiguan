@@ -6,6 +6,7 @@ struct HomeView: View {
     let feedback: FeedbackService
     let onContinue: () -> Void
     let onPlayLevel: (Int) -> Void
+    let onShowGuide: () -> Void
 
     @State private var selectedChapter: Int
     @State private var showingSettings = false
@@ -15,13 +16,15 @@ struct HomeView: View {
         settings: GameSettings,
         feedback: FeedbackService,
         onContinue: @escaping () -> Void,
-        onPlayLevel: @escaping (Int) -> Void
+        onPlayLevel: @escaping (Int) -> Void,
+        onShowGuide: @escaping () -> Void
     ) {
         self.gameState = gameState
         self.settings = settings
         self.feedback = feedback
         self.onContinue = onContinue
         self.onPlayLevel = onPlayLevel
+        self.onShowGuide = onShowGuide
         _selectedChapter = State(initialValue: gameState.currentChapter)
     }
 
@@ -45,7 +48,12 @@ struct HomeView: View {
             .background(background(size: size))
         }
         .sheet(isPresented: $showingSettings) {
-            GameSettingsSheet(settings: settings, gameState: gameState, feedback: feedback)
+            GameSettingsSheet(
+                settings: settings,
+                gameState: gameState,
+                feedback: feedback,
+                onShowGuide: onShowGuide
+            )
         }
     }
 }
@@ -86,37 +94,58 @@ private extension HomeView {
                 HomeStatPill(title: "检查点", value: "第 \(gameState.checkpointLevel) 关")
             }
 
-            Button(action: continueGame) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("继续主线")
-                            .font(.system(size: 17, weight: .bold))
-                        Text("从第 \(gameState.levelNumber) 关进入")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(Color.black.opacity(0.68))
+            HStack(spacing: 10) {
+                Button(action: continueGame) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("继续主线")
+                                .font(.system(size: 17, weight: .bold))
+                            Text("从第 \(gameState.levelNumber) 关进入")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(Color.black.opacity(0.68))
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 15, weight: .bold))
                     }
-
-                    Spacer()
-
-                    Image(systemName: "play.fill")
-                        .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(Color.black.opacity(0.88))
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 16)
+                    .background(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 0.58, green: 0.96, blue: 0.90),
+                                Color(red: 0.35, green: 0.83, blue: 1.0)
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        ),
+                        in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    )
                 }
-                .foregroundStyle(Color.black.opacity(0.88))
-                .padding(.horizontal, 18)
-                .padding(.vertical, 16)
-                .background(
-                    LinearGradient(
-                        colors: [
-                            Color(red: 0.58, green: 0.96, blue: 0.90),
-                            Color(red: 0.35, green: 0.83, blue: 1.0)
-                        ],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    ),
-                    in: RoundedRectangle(cornerRadius: 20, style: .continuous)
-                )
+                .buttonStyle(.plain)
+
+                Button(action: showGuide) {
+                    VStack(spacing: 6) {
+                        Image(systemName: "questionmark.circle.fill")
+                            .font(.system(size: 18, weight: .bold))
+                        Text("玩法说明")
+                            .font(.system(size: 12, weight: .bold))
+                    }
+                    .foregroundStyle(Color.white.opacity(0.92))
+                    .frame(width: 108)
+                    .frame(maxHeight: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
         .padding(20)
         .background(
@@ -164,7 +193,9 @@ private extension HomeView {
     }
 
     func chapterPanel(summary: ChapterSummary, levels: [LevelSummary]) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
+        let descriptor = LevelGenerator.chapterDescriptor(for: summary.chapter)
+
+        return VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 5) {
                     Text("第 \(summary.chapter) 章")
@@ -179,6 +210,16 @@ private extension HomeView {
                 Spacer(minLength: 10)
 
                 chapterBadge(summary: summary)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(descriptor.title)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(Color(red: 0.63, green: 0.97, blue: 0.98))
+
+                Text(descriptor.detail)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color.white.opacity(0.74))
             }
 
             if !summary.isUnlocked,
@@ -291,6 +332,11 @@ private extension HomeView {
     func playLevel(_ level: Int) {
         feedback.playTap(using: settings)
         onPlayLevel(level)
+    }
+
+    func showGuide() {
+        feedback.playTap(using: settings)
+        onShowGuide()
     }
 }
 

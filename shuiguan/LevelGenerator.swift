@@ -1,6 +1,56 @@
 import CoreGraphics
 import Foundation
 
+struct ChapterDescriptor {
+    let title: String
+    let detail: String
+}
+
+private enum ChapterStyle {
+    case training
+    case crossfire
+    case whirlpool
+    case pressure
+
+    static func forChapter(_ chapter: Int) -> ChapterStyle {
+        switch max(chapter, 1) {
+        case 1:
+            return .training
+        case 2:
+            return .crossfire
+        case 3:
+            return .whirlpool
+        default:
+            return .pressure
+        }
+    }
+
+    var descriptor: ChapterDescriptor {
+        switch self {
+        case .training:
+            return ChapterDescriptor(
+                title: "入门水路",
+                detail: "先学会盯住最终主管，误导分支最少，给判断节奏打底。"
+            )
+        case .crossfire:
+            return ChapterDescriptor(
+                title: "交叉迷墙",
+                detail: "中段交叉明显变密，假路线会更频繁地往主管附近靠。"
+            )
+        case .whirlpool:
+            return ChapterDescriptor(
+                title: "回环陷阱",
+                detail: "回环和折返开始主导路线，不能只看局部拐点。"
+            )
+        case .pressure:
+            return ChapterDescriptor(
+                title: "深水高压",
+                detail: "交叉、回环和绕路会混在一起，整体更紧、更乱、更难读。"
+            )
+        }
+    }
+}
+
 private enum LevelDifficulty {
     case easy
     case normal
@@ -118,6 +168,7 @@ private struct GenerationProfile {
 struct LevelGenerator {
     let inletCount: Int
     private let validator = LevelValidator()
+    private static let chapterSize = 10
     private struct CacheKey: Hashable {
         let seed: UInt64
         let levelNumber: Int
@@ -154,6 +205,10 @@ struct LevelGenerator {
 
     init(inletCount: Int = 6) {
         self.inletCount = inletCount
+    }
+
+    static func chapterDescriptor(for chapter: Int) -> ChapterDescriptor {
+        ChapterStyle.forChapter(chapter).descriptor
     }
 
     func inletPositions() -> [CGPoint] {
@@ -211,8 +266,7 @@ struct LevelGenerator {
             return cacheAndReturn(inlets, tutorial, normalizedSeed)
         }
 
-        let difficulty = LevelDifficulty.forLevel(normalizedLevel)
-        let profile = difficulty.profile
+        let profile = chapterProfile(for: normalizedLevel)
         var candidateSeed = normalizedSeed
         var bestAnyLevel: MazeLevel?
         var bestAnySeed: UInt64 = candidateSeed
@@ -379,6 +433,92 @@ private extension LevelGenerator {
         }
     }
 
+    func chapterProfile(for levelNumber: Int) -> GenerationProfile {
+        let normalizedLevel = max(levelNumber, 1)
+        let chapter = Self.chapterForLevel(normalizedLevel)
+        let style = ChapterStyle.forChapter(chapter)
+        let base = LevelDifficulty.forLevel(normalizedLevel).profile
+        let levelInChapter = ((normalizedLevel - 1) % Self.chapterSize) + 1
+        let ramp = CGFloat(levelInChapter - 1) / CGFloat(max(Self.chapterSize - 1, 1))
+        let extraPressure = max(chapter - 4, 0)
+
+        switch style {
+        case .training:
+            return base
+        case .crossfire:
+            return adjustedProfile(
+                base,
+                attemptCount: base.attemptCount + 12 + extraPressure * 4,
+                targetPenalty: base.targetPenalty + 0.14 + CGFloat(extraPressure) * 0.05,
+                middleRows: [0.49, 0.52, 0.55, 0.58, 0.61, 0.64],
+                lowerRows: [0.67, 0.70, 0.73, 0.76, 0.79, 0.80],
+                turnCols: [0.12, 0.25, 0.38, 0.62, 0.75, 0.88],
+                crossCols: [0.22, 0.34, 0.46, 0.54, 0.66, 0.78],
+                loopCols: [0.15, 0.29, 0.43, 0.57, 0.71, 0.85],
+                bottomRows: [0.834, 0.848, 0.862, 0.876, 0.888, 0.852],
+                rowJitter: min(base.rowJitter + 0.0012 + ramp * 0.0008 + CGFloat(extraPressure) * 0.0005, 0.0085),
+                upperToMiddleGap: max(base.upperToMiddleGap - 0.006, 0.092),
+                middleToLowerGap: max(base.middleToLowerGap - 0.004, 0.090),
+                loopChance: min(base.loopChance + 8 + Int((ramp + CGFloat(extraPressure) * 0.25) * 10), 92),
+                secondLoopChance: min(base.secondLoopChance + 6 + Int(ramp * 8), 78),
+                detourChance: min(base.detourChance + 18 + Int((ramp + CGFloat(extraPressure) * 0.2) * 14), 76),
+                loopSpan: min(base.loopSpan + 0.01 + ramp * 0.01, 0.24),
+                detourSpan: min(base.detourSpan + 0.015 + ramp * 0.01, 0.20),
+                pushAwayFromInlet: max(base.pushAwayFromInlet - 0.02 - CGFloat(extraPressure) * 0.004, 0.06),
+                pushAwayChain: max(base.pushAwayChain - 0.02 - CGFloat(extraPressure) * 0.004, 0.07),
+                joinVariance: min(base.joinVariance + 0.006 + ramp * 0.004 + CGFloat(extraPressure) * 0.002, 0.045)
+            )
+        case .whirlpool:
+            return adjustedProfile(
+                base,
+                attemptCount: base.attemptCount + 16 + extraPressure * 5,
+                targetPenalty: base.targetPenalty + 0.20 + CGFloat(extraPressure) * 0.06,
+                upperRows: [0.29, 0.32, 0.35, 0.38, 0.41, 0.44],
+                middleRows: [0.47, 0.51, 0.54, 0.57, 0.60, 0.63],
+                lowerRows: [0.66, 0.69, 0.72, 0.75, 0.78, 0.81],
+                turnCols: [0.13, 0.24, 0.35, 0.65, 0.76, 0.87],
+                crossCols: [0.18, 0.30, 0.42, 0.58, 0.70, 0.82],
+                loopCols: [0.09, 0.21, 0.35, 0.65, 0.79, 0.91],
+                bottomRows: [0.83, 0.844, 0.858, 0.872, 0.886, 0.896],
+                rowJitter: min(base.rowJitter + 0.0015 + ramp * 0.001 + CGFloat(extraPressure) * 0.0006, 0.009),
+                upperToMiddleGap: max(base.upperToMiddleGap - 0.008, 0.090),
+                middleToLowerGap: max(base.middleToLowerGap - 0.006, 0.088),
+                loopChance: min(base.loopChance + 24 + Int((ramp + CGFloat(extraPressure) * 0.25) * 16), 96),
+                secondLoopChance: min(base.secondLoopChance + 24 + Int((ramp + CGFloat(extraPressure) * 0.2) * 16), 88),
+                detourChance: min(base.detourChance + 10 + Int(ramp * 10), 70),
+                loopSpan: min(base.loopSpan + 0.045 + ramp * 0.015, 0.27),
+                detourSpan: min(base.detourSpan + 0.01 + ramp * 0.01, 0.20),
+                pushAwayFromInlet: max(base.pushAwayFromInlet - 0.015 - CGFloat(extraPressure) * 0.004, 0.06),
+                pushAwayChain: max(base.pushAwayChain - 0.02 - CGFloat(extraPressure) * 0.004, 0.065),
+                joinVariance: min(base.joinVariance + 0.005 + ramp * 0.004 + CGFloat(extraPressure) * 0.002, 0.046)
+            )
+        case .pressure:
+            return adjustedProfile(
+                base,
+                attemptCount: base.attemptCount + 20 + extraPressure * 8,
+                targetPenalty: base.targetPenalty + 0.28 + CGFloat(extraPressure) * 0.10,
+                upperRows: [0.28, 0.31, 0.34, 0.37, 0.40, 0.43],
+                middleRows: [0.46, 0.50, 0.53, 0.57, 0.60, 0.64],
+                lowerRows: [0.65, 0.69, 0.72, 0.76, 0.80, 0.84],
+                turnCols: [0.10, 0.21, 0.33, 0.67, 0.79, 0.90],
+                crossCols: [0.15, 0.27, 0.39, 0.61, 0.73, 0.85],
+                loopCols: [0.09, 0.23, 0.37, 0.63, 0.77, 0.91],
+                bottomRows: [0.826, 0.842, 0.856, 0.872, 0.888, 0.898],
+                rowJitter: min(base.rowJitter + 0.002 + ramp * 0.0014 + CGFloat(extraPressure) * 0.0008, 0.010),
+                upperToMiddleGap: max(base.upperToMiddleGap - 0.010, 0.086),
+                middleToLowerGap: max(base.middleToLowerGap - 0.008, 0.084),
+                loopChance: min(base.loopChance + 18 + Int((ramp + CGFloat(extraPressure) * 0.3) * 16), 98),
+                secondLoopChance: min(base.secondLoopChance + 18 + Int((ramp + CGFloat(extraPressure) * 0.3) * 18), 92),
+                detourChance: min(base.detourChance + 16 + Int((ramp + CGFloat(extraPressure) * 0.25) * 16), 84),
+                loopSpan: min(base.loopSpan + 0.03 + ramp * 0.015, 0.28),
+                detourSpan: min(base.detourSpan + 0.02 + ramp * 0.015, 0.22),
+                pushAwayFromInlet: max(base.pushAwayFromInlet - 0.025 - CGFloat(extraPressure) * 0.006, 0.05),
+                pushAwayChain: max(base.pushAwayChain - 0.022 - CGFloat(extraPressure) * 0.006, 0.055),
+                joinVariance: min(base.joinVariance + 0.008 + ramp * 0.005 + CGFloat(extraPressure) * 0.003, 0.052)
+            )
+        }
+    }
+
     func tutorialComplexityPenalty(level: MazeLevel, tutorialLevel: Int) -> CGFloat {
         let totalPoints = level.pipes.reduce(0) { $0 + $1.points.count }
         let averagePoints = CGFloat(totalPoints) / CGFloat(max(level.pipes.count, 1))
@@ -409,39 +549,48 @@ private extension LevelGenerator {
 
     func adjustedProfile(
         _ base: GenerationProfile,
-        attemptCount: Int,
-        targetPenalty: CGFloat,
-        rowJitter: CGFloat,
-        loopChance: Int,
-        secondLoopChance: Int,
-        detourChance: Int,
-        loopSpan: CGFloat,
-        detourSpan: CGFloat,
-        pushAwayFromInlet: CGFloat,
-        pushAwayChain: CGFloat,
-        joinVariance: CGFloat
+        attemptCount: Int? = nil,
+        targetPenalty: CGFloat? = nil,
+        upperRows: [CGFloat]? = nil,
+        middleRows: [CGFloat]? = nil,
+        lowerRows: [CGFloat]? = nil,
+        turnCols: [CGFloat]? = nil,
+        crossCols: [CGFloat]? = nil,
+        loopCols: [CGFloat]? = nil,
+        bottomRows: [CGFloat]? = nil,
+        rowJitter: CGFloat? = nil,
+        upperToMiddleGap: CGFloat? = nil,
+        middleToLowerGap: CGFloat? = nil,
+        loopChance: Int? = nil,
+        secondLoopChance: Int? = nil,
+        detourChance: Int? = nil,
+        loopSpan: CGFloat? = nil,
+        detourSpan: CGFloat? = nil,
+        pushAwayFromInlet: CGFloat? = nil,
+        pushAwayChain: CGFloat? = nil,
+        joinVariance: CGFloat? = nil
     ) -> GenerationProfile {
         GenerationProfile(
-            attemptCount: attemptCount,
-            targetPenalty: targetPenalty,
-            upperRows: base.upperRows,
-            middleRows: base.middleRows,
-            lowerRows: base.lowerRows,
-            turnCols: base.turnCols,
-            crossCols: base.crossCols,
-            loopCols: base.loopCols,
-            bottomRows: base.bottomRows,
-            rowJitter: rowJitter,
-            upperToMiddleGap: base.upperToMiddleGap,
-            middleToLowerGap: base.middleToLowerGap,
-            loopChance: loopChance,
-            secondLoopChance: secondLoopChance,
-            detourChance: detourChance,
-            loopSpan: loopSpan,
-            detourSpan: detourSpan,
-            pushAwayFromInlet: pushAwayFromInlet,
-            pushAwayChain: pushAwayChain,
-            joinVariance: joinVariance
+            attemptCount: attemptCount ?? base.attemptCount,
+            targetPenalty: targetPenalty ?? base.targetPenalty,
+            upperRows: upperRows ?? base.upperRows,
+            middleRows: middleRows ?? base.middleRows,
+            lowerRows: lowerRows ?? base.lowerRows,
+            turnCols: turnCols ?? base.turnCols,
+            crossCols: crossCols ?? base.crossCols,
+            loopCols: loopCols ?? base.loopCols,
+            bottomRows: bottomRows ?? base.bottomRows,
+            rowJitter: rowJitter ?? base.rowJitter,
+            upperToMiddleGap: upperToMiddleGap ?? base.upperToMiddleGap,
+            middleToLowerGap: middleToLowerGap ?? base.middleToLowerGap,
+            loopChance: loopChance ?? base.loopChance,
+            secondLoopChance: secondLoopChance ?? base.secondLoopChance,
+            detourChance: detourChance ?? base.detourChance,
+            loopSpan: loopSpan ?? base.loopSpan,
+            detourSpan: detourSpan ?? base.detourSpan,
+            pushAwayFromInlet: pushAwayFromInlet ?? base.pushAwayFromInlet,
+            pushAwayChain: pushAwayChain ?? base.pushAwayChain,
+            joinVariance: joinVariance ?? base.joinVariance
         )
     }
 
@@ -722,5 +871,10 @@ private extension LevelGenerator {
 
     func clampY(_ y: CGFloat) -> CGFloat {
         min(max(y, 0.09), 0.9)
+    }
+
+    private static func chapterForLevel(_ level: Int) -> Int {
+        let resolvedLevel = max(level, 1)
+        return ((resolvedLevel - 1) / chapterSize) + 1
     }
 }

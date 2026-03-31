@@ -6,6 +6,7 @@ final class GameSettings: ObservableObject {
         static let soundEnabled = true
         static let hapticsEnabled = true
         static let debugHUDEnabled = false
+        static let tutorialGuideCompleted = false
     }
 
     @Published var soundEnabled: Bool {
@@ -20,6 +21,10 @@ final class GameSettings: ObservableObject {
         didSet { storage.set(debugHUDEnabled, forKey: StorageKey.debugHUDEnabled) }
     }
 
+    @Published private(set) var tutorialGuideCompleted: Bool {
+        didSet { storage.set(tutorialGuideCompleted, forKey: StorageKey.tutorialGuideCompleted) }
+    }
+
     private let storage = UserDefaults.standard
 
     private enum StorageKey {
@@ -27,6 +32,7 @@ final class GameSettings: ObservableObject {
         static let hapticsEnabled = "shuiguan.settings.hapticsEnabled"
         static let debugHUDEnabled = "shuiguan.settings.debugHUDEnabled"
         static let all = [soundEnabled, hapticsEnabled, debugHUDEnabled]
+        static let tutorialGuideCompleted = "shuiguan.settings.tutorialGuideCompleted"
     }
 
     init() {
@@ -39,10 +45,14 @@ final class GameSettings: ObservableObject {
         if storage.object(forKey: StorageKey.debugHUDEnabled) == nil {
             storage.set(Defaults.debugHUDEnabled, forKey: StorageKey.debugHUDEnabled)
         }
+        if storage.object(forKey: StorageKey.tutorialGuideCompleted) == nil {
+            storage.set(Defaults.tutorialGuideCompleted, forKey: StorageKey.tutorialGuideCompleted)
+        }
 
         self.soundEnabled = storage.bool(forKey: StorageKey.soundEnabled)
         self.hapticsEnabled = storage.bool(forKey: StorageKey.hapticsEnabled)
         self.debugHUDEnabled = storage.bool(forKey: StorageKey.debugHUDEnabled)
+        self.tutorialGuideCompleted = storage.bool(forKey: StorageKey.tutorialGuideCompleted)
     }
 
     func resetToDefaults() {
@@ -54,12 +64,17 @@ final class GameSettings: ObservableObject {
         hapticsEnabled = Defaults.hapticsEnabled
         debugHUDEnabled = Defaults.debugHUDEnabled
     }
+
+    func markTutorialGuideCompleted() {
+        tutorialGuideCompleted = true
+    }
 }
 
 struct GameSettingsSheet: View {
     @ObservedObject var settings: GameSettings
     @ObservedObject var gameState: GameState
     let feedback: FeedbackService
+    let onShowGuide: () -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var showingResetSettingsAlert = false
     @State private var showingResetProgressAlert = false
@@ -70,6 +85,7 @@ struct GameSettingsSheet: View {
             Form {
                 feedbackSection
                 debugSection
+                helpSection
                 dataSection
             }
             .scrollContentBackground(.hidden)
@@ -142,6 +158,24 @@ struct GameSettingsSheet: View {
             Text("数据")
         } footer: {
             Text("重置进度会清空关卡、星级和检查点记录。")
+        }
+    }
+
+    private var helpSection: some View {
+        Section {
+            Button("查看玩法说明") {
+                feedback.playTap(using: settings)
+                dismiss()
+
+                Task { @MainActor in
+                    await Task.yield()
+                    onShowGuide()
+                }
+            }
+        } header: {
+            Text("帮助")
+        } footer: {
+            Text(settings.tutorialGuideCompleted ? "可以随时重新查看玩法说明。" : "首次玩法说明还未完成。")
         }
     }
 
