@@ -1,13 +1,11 @@
 import SwiftUI
 
 struct GameView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var gameState = GameState()
+    @StateObject private var settings = GameSettings()
+    @StateObject private var feedback = FeedbackService()
     private let generator = LevelGenerator(inletCount: 6)
-#if DEBUG
-    @State private var showDebugHUD = false
-#else
-    private let showDebugHUD = false
-#endif
     @State private var successPulseID = UUID()
     @State private var wrongOutletFlashPipeID: Int?
     @State private var wrongOutletFlashPulse = false
@@ -15,6 +13,7 @@ struct GameView: View {
     @State private var lostCupIndex: Int?
     @State private var lostCupDropping = false
     @State private var activeStarBurst: StarBurst?
+    @State private var showingSettings = false
 
     var body: some View {
         GeometryReader { proxy in
@@ -56,7 +55,13 @@ struct GameView: View {
                     isEnabled: gameState.phase == .idle,
                     pipes: pipes
                 ) { pipeID in
+                    feedback.playTap(using: settings)
                     gameState.startPour(pipeID: pipeID, correctPipeID: level.correctPipeID)
+
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 90_000_000)
+                        feedback.playPourStart(using: settings)
+                    }
                 }
 
                 if gameState.phase == .result {
@@ -77,10 +82,12 @@ struct GameView: View {
                     currentChapter: gameState.currentChapter,
                     nextProgress: gameState.chapterProgressForHUD()
                 )
-                if showDebugHUD {
+#if DEBUG
+                if settings.debugHUDEnabled {
                     answerHintPanel(size: size, correctFunnelID: level.correctPipeID)
                     progressDebugPanel(size: size)
                 }
+#endif
 
                 if let lockNotice = gameState.chapterLockNotice {
                     chapterLockPanel(size: size, notice: lockNotice) {
@@ -88,24 +95,38 @@ struct GameView: View {
                     }
                 }
 
-                Text("MAZE v41")
+                settingsButton(size: size) {
+                    showingSettings = true
+                }
+
+                Text("MAZE v42")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(Color.white.opacity(0.7))
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
                     .background(Color.black.opacity(0.25), in: Capsule())
                     .position(x: size.width * 0.15, y: size.height * 0.12)
-#if DEBUG
-                    .onLongPressGesture(minimumDuration: 0.8) {
-                        showDebugHUD.toggle()
-                    }
-#else
                     .allowsHitTesting(false)
-#endif
             }
             .contentShape(Rectangle())
             .onChange(of: gameState.phase) { _, phase in
                 handlePhaseChange(phase, pipes: pipes, size: size)
+            }
+            .onAppear {
+                feedback.activateForForeground(using: settings)
+            }
+            .onChange(of: scenePhase) { _, phase in
+                switch phase {
+                case .active:
+                    feedback.activateForForeground(using: settings)
+                case .inactive, .background:
+                    feedback.suspendForBackground()
+                @unknown default:
+                    break
+                }
+            }
+            .sheet(isPresented: $showingSettings) {
+                GameSettingsSheet(settings: settings, gameState: gameState, feedback: feedback)
             }
             .onTapGesture {
                 guard gameState.phase == .result else { return }
@@ -428,6 +449,22 @@ private extension GameView {
         .allowsHitTesting(false)
     }
 
+    func settingsButton(size: CGSize, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: "gearshape.fill")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(Color.white.opacity(0.9))
+                .frame(width: 36, height: 36)
+                .background(Color.black.opacity(0.28), in: Circle())
+                .overlay(
+                    Circle()
+                        .stroke(Color.white.opacity(0.14), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+        .position(x: size.width * 0.92, y: size.height * 0.12)
+    }
+
     func answerHintPanel(size: CGSize, correctFunnelID: Int) -> some View {
         Text("Correct: F\(correctFunnelID + 1)")
             .font(.system(size: 12, weight: .semibold))
@@ -463,9 +500,17 @@ private extension GameView {
     func handlePhaseChange(_ phase: RoundPhase, pipes: [Pipe], size: CGSize) {
         switch phase {
         case .success:
+            feedback.playSuccess(using: settings)
             playSuccessFeedback(size: size)
         case .fail:
+            feedback.playFailure(using: settings)
             playFailureFeedback()
+        case .idle:
+            wrongOutletFlashPipeID = nil
+            wrongOutletFlashPulse = false
+            lostCupIndex = nil
+            lostCupDropping = false
+            activeStarBurst = nil
         default:
             break
         }

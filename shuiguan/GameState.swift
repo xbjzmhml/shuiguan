@@ -54,7 +54,7 @@ final class GameState: ObservableObject {
     let maxLives = 3
     private let storage = UserDefaults.standard
     private var roundToken = UUID()
-    private let startSeed: UInt64
+    private var startSeed: UInt64
     private let generator = LevelGenerator(inletCount: 6)
     private var checkpointSeed: UInt64 = 1
     private var bestStarsByLevel: [Int: Int] = [:]
@@ -70,13 +70,24 @@ final class GameState: ObservableObject {
         static let checkpointLevel = "shuiguan.checkpointLevel"
         static let levelStars = "shuiguan.levelStars"
         static let levelMistakes = "shuiguan.levelMistakes"
+        static let all = [
+            startSeed,
+            levelSeed,
+            levelNumber,
+            lives,
+            streak,
+            checkpointSeed,
+            checkpointLevel,
+            levelStars,
+            levelMistakes
+        ]
     }
 
     let animationDuration: Double = 3.2
 
     init() {
         let defaultLives = 3
-        let defaultSeed = UInt64(Date().timeIntervalSince1970 * 1000)
+        let defaultSeed = Self.makeSeed()
         let storedStartSeed = Self.readUInt64(StorageKey.startSeed, from: storage)
         let storedLevelSeed = Self.readUInt64(StorageKey.levelSeed, from: storage)
         let storedLevelNumber = storage.object(forKey: StorageKey.levelNumber) as? Int
@@ -143,6 +154,27 @@ final class GameState: ObservableObject {
 
     func dismissChapterLockNotice() {
         chapterLockNotice = nil
+    }
+
+    func resetProgress() {
+        for key in StorageKey.all {
+            storage.removeObject(forKey: key)
+        }
+
+        startSeed = Self.makeSeed()
+        bestStarsByLevel = [:]
+        totalStars = 0
+        checkpointLevel = 1
+        checkpointSeed = startSeed
+        levelSeed = startSeed
+        levelNumber = 1
+        lives = maxLives
+        streak = 0
+        levelMistakes = 0
+        praiseBanner = nil
+        chapterLockNotice = nil
+        resetRoundState()
+        persistProgress()
     }
 
     func startPour(pipeID: Int, correctPipeID: Int) {
@@ -416,6 +448,10 @@ final class GameState: ObservableObject {
     private static func chapterForLevel(_ level: Int) -> Int {
         let resolvedLevel = max(level, 1)
         return ((resolvedLevel - 1) / chapterSize) + 1
+    }
+
+    private static func makeSeed() -> UInt64 {
+        UInt64(Date().timeIntervalSince1970 * 1000)
     }
 
     private static func readUInt64(_ key: String, from storage: UserDefaults) -> UInt64? {
