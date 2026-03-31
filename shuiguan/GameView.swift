@@ -1,10 +1,10 @@
 import SwiftUI
 
 struct GameView: View {
-    @Environment(\.scenePhase) private var scenePhase
-    @StateObject private var gameState = GameState()
-    @StateObject private var settings = GameSettings()
-    @StateObject private var feedback = FeedbackService()
+    @ObservedObject var gameState: GameState
+    @ObservedObject var settings: GameSettings
+    let feedback: FeedbackService
+    let onExit: () -> Void
     private let generator = LevelGenerator(inletCount: 6)
     @State private var successPulseID = UUID()
     @State private var wrongOutletFlashPipeID: Int?
@@ -95,8 +95,10 @@ struct GameView: View {
                     }
                 }
 
-                settingsButton(size: size) {
-                    showingSettings = true
+                topButtons(size: size)
+
+                if gameState.isReplaying {
+                    replayBadge(size: size)
                 }
 
                 Text("MAZE v43")
@@ -111,19 +113,6 @@ struct GameView: View {
             .contentShape(Rectangle())
             .onChange(of: gameState.phase) { _, phase in
                 handlePhaseChange(phase, pipes: pipes, size: size)
-            }
-            .onAppear {
-                feedback.activateForForeground(using: settings)
-            }
-            .onChange(of: scenePhase) { _, phase in
-                switch phase {
-                case .active:
-                    feedback.activateForForeground(using: settings)
-                case .inactive, .background:
-                    feedback.suspendForBackground()
-                @unknown default:
-                    break
-                }
             }
             .sheet(isPresented: $showingSettings) {
                 GameSettingsSheet(settings: settings, gameState: gameState, feedback: feedback)
@@ -449,9 +438,38 @@ private extension GameView {
         .allowsHitTesting(false)
     }
 
-    func settingsButton(size: CGSize, action: @escaping () -> Void) -> some View {
+    func topButtons(size: CGSize) -> some View {
+        HStack(spacing: 10) {
+            topButton(symbol: "house.fill") {
+                feedback.playTap(using: settings)
+                onExit()
+            }
+
+            topButton(symbol: "gearshape.fill") {
+                feedback.playTap(using: settings)
+                showingSettings = true
+            }
+        }
+        .position(x: size.width * 0.84, y: size.height * 0.12)
+    }
+
+    func replayBadge(size: CGSize) -> some View {
+        Text("回放模式")
+            .font(.system(size: 12, weight: .bold))
+            .foregroundStyle(Color.white.opacity(0.95))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                Color(red: 0.90, green: 0.47, blue: 0.28, opacity: 0.92),
+                in: Capsule()
+            )
+            .position(x: size.width * 0.50, y: size.height * 0.12)
+            .allowsHitTesting(false)
+    }
+
+    func topButton(symbol: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: "gearshape.fill")
+            Image(systemName: symbol)
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(Color.white.opacity(0.9))
                 .frame(width: 36, height: 36)
@@ -462,7 +480,6 @@ private extension GameView {
                 )
         }
         .buttonStyle(.plain)
-        .position(x: size.width * 0.92, y: size.height * 0.12)
     }
 
     func answerHintPanel(size: CGSize, correctFunnelID: Int) -> some View {

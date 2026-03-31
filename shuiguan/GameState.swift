@@ -35,6 +35,27 @@ struct ChapterLockNotice: Identifiable {
     let replayStartLevel: Int
 }
 
+struct ChapterSummary: Identifiable {
+    let id: Int
+    let chapter: Int
+    let levelRange: ClosedRange<Int>
+    let earnedStars: Int
+    let maxStars: Int
+    let unlockEarnedStars: Int?
+    let unlockRequiredStars: Int?
+    let isUnlocked: Bool
+    let isCurrent: Bool
+}
+
+struct LevelSummary: Identifiable {
+    let id: Int
+    let level: Int
+    let stars: Int
+    let isCurrent: Bool
+    let isCheckpoint: Bool
+    let isSelectable: Bool
+}
+
 final class GameState: ObservableObject {
     @Published var activePipeID: Int?
     @Published var waterProgress: CGFloat = 0
@@ -58,6 +79,7 @@ final class GameState: ObservableObject {
     private let generator = LevelGenerator(inletCount: 6)
     private var checkpointSeed: UInt64 = 1
     private var bestStarsByLevel: [Int: Int] = [:]
+    private var replayBaseline: ProgressSnapshot?
     private static let chapterSize = 10
     private static let chapterUnlockRequiredStars = 18
     private enum StorageKey {
@@ -81,6 +103,16 @@ final class GameState: ObservableObject {
             levelStars,
             levelMistakes
         ]
+    }
+
+    private struct ProgressSnapshot {
+        let levelSeed: UInt64
+        let levelNumber: Int
+        let lives: Int
+        let streak: Int
+        let checkpointLevel: Int
+        let checkpointSeed: UInt64
+        let levelMistakes: Int
     }
 
     let animationDuration: Double = 3.2
@@ -152,8 +184,108 @@ final class GameState: ObservableObject {
         Self.chapterForLevel(levelNumber)
     }
 
+    var isReplaying: Bool {
+        replayBaseline != nil
+    }
+
+    func chapterSummaries() -> [ChapterSummary] {
+        let highestCompletedLevel = bestStarsByLevel.keys.max() ?? 0
+        let highestKnownLevel = max(levelNumber, highestCompletedLevel, 1)
+        let chapterCount = max(Self.chapterForLevel(highestKnownLevel) + 1, 4)
+
+        return (1...chapterCount).map { chapter in
+            let range = Self.levelRange(for: chapter)
+            let earned = stars(in: range)
+
+            if chapter == 1 {
+                return ChapterSummary(
+                    id: chapter,
+                    chapter: chapter,
+                    levelRange: range,
+                    earnedStars: earned,
+                    maxStars: range.count * 3,
+                    unlockEarnedStars: nil,
+                    unlockRequiredStars: nil,
+                    isUnlocked: true,
+                    isCurrent: chapter == currentChapter
+                )
+            }
+
+            let gate = chapterProgressForUnlockingChapter(chapter)
+            return ChapterSummary(
+                id: chapter,
+                chapter: chapter,
+                levelRange: range,
+                earnedStars: earned,
+                maxStars: range.count * 3,
+                unlockEarnedStars: gate.earnedStars,
+                unlockRequiredStars: gate.requiredStars,
+                isUnlocked: gate.isUnlocked,
+                isCurrent: chapter == currentChapter
+            )
+        }
+    }
+
+    func levelSummaries(for chapter: Int) -> [LevelSummary] {
+        let range = Self.levelRange(for: chapter)
+        return range.map { level in
+            LevelSummary(
+                id: level,
+                level: level,
+                stars: bestStarsByLevel[level] ?? 0,
+                isCurrent: level == levelNumber,
+                isCheckpoint: Self.isCheckpointLevel(level),
+                isSelectable: canSelectLevel(level)
+            )
+        }
+    }
+
     func dismissChapterLockNotice() {
         chapterLockNotice = nil
+    }
+
+    func selectLevel(_ targetLevel: Int) -> Bool {
+        guard canSelectLevel(targetLevel) else { return false }
+
+        let resolvedLevel = max(targetLevel, 1)
+        let baseline = replayBaseline ?? currentProgressSnapshot()
+        if resolvedLevel == baseline.levelNumber {
+            if replayBaseline != nil {
+                restoreReplayBaseline()
+            }
+            chapterLockNotice = nil
+            praiseBanner = nil
+            resetRoundState()
+            persistProgress()
+            return true
+        }
+
+        if replayBaseline == nil {
+            replayBaseline = baseline
+        }
+
+        levelNumber = resolvedLevel
+        levelSeed = seedForLevel(levelNumber)
+        checkpointLevel = Self.checkpointForLevel(levelNumber)
+        checkpointSeed = seedForLevel(checkpointLevel)
+        lives = maxLives
+        streak = 0
+        levelMistakes = 0
+        chapterLockNotice = nil
+        praiseBanner = nil
+        resetRoundState()
+        persistProgress()
+        return true
+    }
+
+    func prepareForMenu() {
+        chapterLockNotice = nil
+        praiseBanner = nil
+        if replayBaseline != nil {
+            restoreReplayBaseline()
+        }
+        resetRoundState()
+        persistProgress()
     }
 
     func resetProgress() {
@@ -173,6 +305,7 @@ final class GameState: ObservableObject {
         levelMistakes = 0
         praiseBanner = nil
         chapterLockNotice = nil
+        replayBaseline = nil
         resetRoundState()
         persistProgress()
     }
@@ -256,6 +389,9 @@ final class GameState: ObservableObject {
                 }
             }
             levelMistakes = 0
+            if let baseline = replayBaseline, levelNumber > baseline.levelNumber {
+                replayBaseline = nil
+            }
         } else if lives == 0 {
             // All cups used: fallback to last checkpoint (10, 20, 30...).
             restoreFromCheckpoint()
@@ -345,15 +481,49 @@ final class GameState: ObservableObject {
     }
 
     private func persistProgress() {
+        let persisted = replayBaseline ?? currentProgressSnapshot()
+
         storage.set(startSeed, forKey: StorageKey.startSeed)
-        storage.set(levelSeed, forKey: StorageKey.levelSeed)
-        storage.set(levelNumber, forKey: StorageKey.levelNumber)
-        storage.set(lives, forKey: StorageKey.lives)
-        storage.set(streak, forKey: StorageKey.streak)
-        storage.set(levelMistakes, forKey: StorageKey.levelMistakes)
-        storage.set(checkpointSeed, forKey: StorageKey.checkpointSeed)
-        storage.set(checkpointLevel, forKey: StorageKey.checkpointLevel)
+        storage.set(persisted.levelSeed, forKey: StorageKey.levelSeed)
+        storage.set(persisted.levelNumber, forKey: StorageKey.levelNumber)
+        storage.set(persisted.lives, forKey: StorageKey.lives)
+        storage.set(persisted.streak, forKey: StorageKey.streak)
+        storage.set(persisted.levelMistakes, forKey: StorageKey.levelMistakes)
+        storage.set(persisted.checkpointSeed, forKey: StorageKey.checkpointSeed)
+        storage.set(persisted.checkpointLevel, forKey: StorageKey.checkpointLevel)
         storage.set(encodeLevelStars(bestStarsByLevel), forKey: StorageKey.levelStars)
+    }
+
+    private func currentProgressSnapshot() -> ProgressSnapshot {
+        ProgressSnapshot(
+            levelSeed: levelSeed,
+            levelNumber: levelNumber,
+            lives: lives,
+            streak: streak,
+            checkpointLevel: checkpointLevel,
+            checkpointSeed: checkpointSeed,
+            levelMistakes: levelMistakes
+        )
+    }
+
+    private func restoreReplayBaseline() {
+        guard let baseline = replayBaseline else { return }
+        apply(snapshot: baseline)
+        replayBaseline = nil
+    }
+
+    private func apply(snapshot: ProgressSnapshot) {
+        levelSeed = baselineSafeSeed(snapshot.levelSeed)
+        levelNumber = max(snapshot.levelNumber, 1)
+        lives = min(max(snapshot.lives, 0), maxLives)
+        streak = max(snapshot.streak, 0)
+        checkpointLevel = max(snapshot.checkpointLevel, 1)
+        checkpointSeed = baselineSafeSeed(snapshot.checkpointSeed)
+        levelMistakes = max(snapshot.levelMistakes, 0)
+    }
+
+    private func baselineSafeSeed(_ seed: UInt64) -> UInt64 {
+        max(seed, 1)
     }
 
     private func updateBestStars(for level: Int, earned: Int) {
@@ -406,6 +576,12 @@ final class GameState: ObservableObject {
         return gate.isUnlocked ? nil : gate
     }
 
+    private func canSelectLevel(_ level: Int) -> Bool {
+        let resolvedLevel = max(level, 1)
+        guard gateInfoForAccessingLevel(resolvedLevel) == nil else { return false }
+        return resolvedLevel <= max(levelNumber, bestStarsByLevel.keys.max() ?? 0, 1)
+    }
+
     private func applyChapterLock(_ gate: ChapterProgressInfo) {
         let replayLevel = gate.sourceRange.lowerBound
         levelNumber = replayLevel
@@ -448,6 +624,13 @@ final class GameState: ObservableObject {
     private static func chapterForLevel(_ level: Int) -> Int {
         let resolvedLevel = max(level, 1)
         return ((resolvedLevel - 1) / chapterSize) + 1
+    }
+
+    private static func levelRange(for chapter: Int) -> ClosedRange<Int> {
+        let resolvedChapter = max(chapter, 1)
+        let start = (resolvedChapter - 1) * chapterSize + 1
+        let end = resolvedChapter * chapterSize
+        return start...end
     }
 
     private static func makeSeed() -> UInt64 {
