@@ -91,6 +91,10 @@
 			knownRegions = (
 				en,
 				Base,
+				"es-MX",
+				ja,
+				ko,
+				"pt-BR",
 				"zh-Hans",
 				"zh-Hant",
 			);
