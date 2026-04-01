@@ -301,6 +301,9 @@ final class GameState: ObservableObject {
         praiseBanner = nil
         if replayBaseline != nil {
             restoreReplayBaseline()
+        } else if lives <= 0 {
+            restoreFromCheckpoint()
+            return
         }
         resetRoundState()
         persistProgress()
@@ -643,7 +646,13 @@ final class GameState: ObservableObject {
     private func canSelectLevel(_ level: Int) -> Bool {
         let resolvedLevel = max(level, 1)
         guard gateInfoForAccessingLevel(resolvedLevel) == nil else { return false }
-        return resolvedLevel <= max(levelNumber, bestStarsByLevel.keys.max() ?? 0, 1)
+        return resolvedLevel <= highestSelectableLevel()
+    }
+
+    private func highestSelectableLevel() -> Int {
+        let highestCompletedLevel = bestStarsByLevel.keys.max() ?? 0
+        // Keep the next unseen mainline level selectable after a chapter is unlocked via replay stars.
+        return max(levelNumber, highestCompletedLevel + 1, 1)
     }
 
     private func applyChapterLock(_ gate: ChapterProgressInfo) {

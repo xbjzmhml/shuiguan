@@ -21,6 +21,7 @@ struct GameView: View {
         GeometryReader { proxy in
             let size = proxy.size
             let generated = generator.generate(seed: gameState.levelSeed, levelNumber: gameState.levelNumber)
+            let theme = ChapterTheme.forChapter(gameState.currentChapter)
             let inlets = generated.inlets
             let level = generated.level
             let resolvedSeed = generated.resolvedSeed
@@ -28,21 +29,23 @@ struct GameView: View {
             let pipeWidth = min(size.width, size.height) * 0.045
 
             ZStack {
-                background(size: size)
+                background(size: size, theme: theme)
 
-                pipesLayer(pipes: pipes, size: size, pipeWidth: pipeWidth)
-                waterLayer(pipes: pipes, size: size, pipeWidth: pipeWidth)
+                pipesLayer(pipes: pipes, size: size, pipeWidth: pipeWidth, theme: theme)
+                waterLayer(pipes: pipes, size: size, pipeWidth: pipeWidth, theme: theme)
 
                 outletMarkers(
                     pipes: pipes,
                     size: size,
                     flashingPipeID: wrongOutletFlashPipeID,
-                    flashPulse: wrongOutletFlashPulse
+                    flashPulse: wrongOutletFlashPulse,
+                    theme: theme
                 )
                 outletGlow(
                     size: size,
                     isActive: gameState.lastResultCorrect && gameState.waterProgress > 0.97,
-                    successPulseID: successPulseID
+                    successPulseID: successPulseID,
+                    theme: theme
                 )
 
                 if let burst = activeStarBurst {
@@ -69,7 +72,7 @@ struct GameView: View {
                 }
 
                 if gameState.phase == .result {
-                    resultPanel(size: size) {
+                    resultPanel(size: size, theme: theme) {
                         let nextSeed = generator.nextSeed(from: resolvedSeed)
                         gameState.finishRound(nextSeed: nextSeed)
                     }
@@ -80,11 +83,12 @@ struct GameView: View {
                         .id(banner.id)
                 }
 
-                livesPanel(size: size)
+                livesPanel(size: size, theme: theme)
                 chapterStarsPanel(
                     size: size,
                     currentChapter: gameState.currentChapter,
-                    nextProgress: gameState.chapterProgressForHUD()
+                    nextProgress: gameState.chapterProgressForHUD(),
+                    theme: theme
                 )
 #if DEBUG
                 if settings.debugHUDEnabled {
@@ -94,15 +98,15 @@ struct GameView: View {
 #endif
 
                 if let lockNotice = gameState.chapterLockNotice {
-                    chapterLockPanel(size: size, notice: lockNotice) {
+                    chapterLockPanel(size: size, notice: lockNotice, theme: theme) {
                         gameState.dismissChapterLockNotice()
                     }
                 }
 
-                topButtons(size: size)
+                topButtons(size: size, theme: theme)
 
                 if gameState.isReplaying {
-                    replayBadge(size: size)
+                    replayBadge(size: size, theme: theme)
                 }
 
                 Text("MAZE v43")
@@ -110,7 +114,7 @@ struct GameView: View {
                     .foregroundStyle(Color.white.opacity(0.7))
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
-                    .background(Color.black.opacity(0.25), in: Capsule())
+                    .background(theme.badgeColor.opacity(0.28), in: Capsule())
                     .position(x: size.width * 0.15, y: size.height * 0.12)
                     .allowsHitTesting(false)
             }
@@ -139,7 +143,7 @@ struct GameView: View {
 }
 
 private extension GameView {
-    func pipesLayer(pipes: [Pipe], size: CGSize, pipeWidth: CGFloat) -> some View {
+    func pipesLayer(pipes: [Pipe], size: CGSize, pipeWidth: CGFloat, theme: ChapterTheme) -> some View {
         let ordered = pipes.sorted { lhs, rhs in
             if lhs.drawOrder == rhs.drawOrder {
                 return lhs.id < rhs.id
@@ -154,10 +158,7 @@ private extension GameView {
                 path
                     .stroke(
                         LinearGradient(
-                            colors: [
-                                Color(red: 0.56, green: 0.72, blue: 0.88, opacity: 0.44),
-                                Color(red: 0.28, green: 0.4, blue: 0.54, opacity: 0.38)
-                            ],
+                            colors: theme.pipeGradient,
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ),
@@ -176,7 +177,7 @@ private extension GameView {
         .allowsHitTesting(false)
     }
 
-    func waterLayer(pipes: [Pipe], size: CGSize, pipeWidth: CGFloat) -> some View {
+    func waterLayer(pipes: [Pipe], size: CGSize, pipeWidth: CGFloat, theme: ChapterTheme) -> some View {
         ZStack {
             if let activeID = gameState.activePipeID,
                let pipe = pipes.first(where: { $0.id == activeID }) {
@@ -185,16 +186,13 @@ private extension GameView {
                     .trim(from: 0, to: gameState.waterProgress)
                     .stroke(
                         LinearGradient(
-                            colors: [
-                                Color(red: 0.22, green: 0.86, blue: 1.0),
-                                Color(red: 0.72, green: 0.98, blue: 1.0)
-                            ],
+                            colors: theme.waterGradient,
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ),
                         style: StrokeStyle(lineWidth: pipeWidth * 0.55, lineCap: .round, lineJoin: .round)
                     )
-                    .shadow(color: Color(red: 0.33, green: 0.92, blue: 1.0, opacity: 0.65), radius: 12, x: 0, y: 0)
+                    .shadow(color: theme.outletGlow.opacity(0.65), radius: 12, x: 0, y: 0)
                     .animation(.linear(duration: gameState.animationDuration), value: gameState.waterProgress)
             }
         }
@@ -283,16 +281,16 @@ private extension GameView {
         }
     }
 
-    func outletGlow(size: CGSize, isActive: Bool, successPulseID: UUID) -> some View {
+    func outletGlow(size: CGSize, isActive: Bool, successPulseID: UUID, theme: ChapterTheme) -> some View {
         let center = CGPoint(x: size.width * 0.5, y: size.height * 0.93)
 
         return ZStack {
             Circle()
-                .fill(Color(red: 0.48, green: 1.0, blue: 0.75, opacity: isActive ? 0.82 : 0.34))
+                .fill(theme.outletFill.opacity(isActive ? 0.82 : 0.34))
                 .frame(width: size.width * 0.08, height: size.width * 0.08)
                 .position(center)
                 .shadow(
-                    color: Color(red: 0.4, green: 1.0, blue: 0.8, opacity: isActive ? 0.82 : 0.32),
+                    color: theme.outletGlow.opacity(isActive ? 0.82 : 0.32),
                     radius: isActive ? 30 : 15,
                     x: 0,
                     y: 0
@@ -315,7 +313,8 @@ private extension GameView {
         pipes: [Pipe],
         size: CGSize,
         flashingPipeID: Int?,
-        flashPulse: Bool
+        flashPulse: Bool,
+        theme: ChapterTheme
     ) -> some View {
         ZStack {
             ForEach(pipes.filter { !$0.isCorrect }, id: \.id) { pipe in
@@ -330,7 +329,7 @@ private extension GameView {
                         if flashingPipeID == pipe.id {
                             Circle()
                                 .stroke(
-                                    Color(red: 1.0, green: 0.45, blue: 0.4, opacity: flashPulse ? 0.95 : 0.4),
+                                    theme.warningAccent.opacity(flashPulse ? 0.95 : 0.4),
                                     lineWidth: flashPulse ? 4 : 2
                                 )
                                 .frame(
@@ -338,7 +337,7 @@ private extension GameView {
                                     height: size.width * (flashPulse ? 0.075 : 0.048)
                                 )
                                 .shadow(
-                                    color: Color(red: 1.0, green: 0.4, blue: 0.35, opacity: 0.75),
+                                    color: theme.warningAccent.opacity(0.75),
                                     radius: 10,
                                     x: 0,
                                     y: 0
@@ -352,21 +351,17 @@ private extension GameView {
         .allowsHitTesting(false)
     }
 
-    func background(size: CGSize) -> some View {
+    func background(size: CGSize, theme: ChapterTheme) -> some View {
         ZStack {
             LinearGradient(
-                colors: [
-                    Color(red: 0.05, green: 0.08, blue: 0.12),
-                    Color(red: 0.1, green: 0.14, blue: 0.2),
-                    Color(red: 0.13, green: 0.18, blue: 0.26)
-                ],
+                colors: theme.gameBackground,
                 startPoint: .top,
                 endPoint: .bottom
             )
 
             RadialGradient(
                 colors: [
-                    Color(red: 0.2, green: 0.3, blue: 0.45, opacity: 0.35),
+                    theme.gameGlow,
                     Color.clear
                 ],
                 center: .topLeading,
@@ -375,16 +370,22 @@ private extension GameView {
             )
 
             Capsule()
-                .fill(Color.white.opacity(0.06))
+                .fill(theme.cardAccent.opacity(0.08))
                 .frame(width: size.width * 0.7, height: size.height * 0.25)
                 .blur(radius: 40)
                 .offset(x: -size.width * 0.1, y: -size.height * 0.25)
+
+            Circle()
+                .fill(theme.badgeColor.opacity(0.06))
+                .frame(width: size.width * 0.65, height: size.width * 0.65)
+                .blur(radius: 24)
+                .offset(x: size.width * 0.28, y: size.height * 0.18)
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)
     }
 
-    func livesPanel(size: CGSize) -> some View {
+    func livesPanel(size: CGSize, theme: ChapterTheme) -> some View {
         HStack(spacing: 10) {
             ForEach(0..<gameState.maxLives, id: \.self) { idx in
                 WaterCupView(isFilled: idx < gameState.lives)
@@ -396,7 +397,7 @@ private extension GameView {
                         if idx == lostCupIndex {
                             RoundedRectangle(cornerRadius: size.width * 0.02, style: .continuous)
                                 .stroke(
-                                    Color(red: 1.0, green: 0.48, blue: 0.42, opacity: lostCupDropping ? 0.9 : 0.45),
+                                    theme.warningAccent.opacity(lostCupDropping ? 0.9 : 0.45),
                                     lineWidth: 2
                                 )
                                 .blur(radius: lostCupDropping ? 0 : 1)
@@ -407,7 +408,7 @@ private extension GameView {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .background(Color.black.opacity(0.25), in: Capsule())
+        .background(theme.badgeColor.opacity(0.22), in: Capsule())
         .position(x: size.width * 0.18, y: size.height * 0.958)
         .modifier(ShakeEffect(animatableData: livesShakeTick))
         .allowsHitTesting(false)
@@ -416,7 +417,8 @@ private extension GameView {
     func chapterStarsPanel(
         size: CGSize,
         currentChapter: Int,
-        nextProgress: ChapterProgressInfo
+        nextProgress: ChapterProgressInfo,
+        theme: ChapterTheme
     ) -> some View {
         let progressText: String = {
             if nextProgress.isUnlocked {
@@ -425,7 +427,7 @@ private extension GameView {
             return "解锁第\(nextProgress.targetChapter)章 \(nextProgress.earnedStars)/\(nextProgress.requiredStars)"
         }()
         let progressColor = nextProgress.isUnlocked
-            ? Color(red: 0.56, green: 0.98, blue: 0.8)
+            ? theme.successAccent
             : Color.white.opacity(0.76)
 
         return VStack(alignment: .trailing, spacing: 2) {
@@ -435,29 +437,32 @@ private extension GameView {
             Text("当前：第\(currentChapter)章")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(Color.white.opacity(0.82))
+            Text(theme.descriptor.title)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(theme.cardAccent.opacity(0.92))
             Text(progressText)
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(progressColor)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
-        .background(Color.black.opacity(0.26), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(theme.badgeColor.opacity(0.20), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                .stroke(theme.cardAccent.opacity(0.18), lineWidth: 1)
         )
         .position(x: size.width * 0.82, y: size.height * 0.955)
         .allowsHitTesting(false)
     }
 
-    func topButtons(size: CGSize) -> some View {
+    func topButtons(size: CGSize, theme: ChapterTheme) -> some View {
         HStack(spacing: 10) {
-            topButton(symbol: "house.fill") {
+            topButton(symbol: "house.fill", theme: theme) {
                 feedback.playTap(using: settings)
                 onExit()
             }
 
-            topButton(symbol: "gearshape.fill") {
+            topButton(symbol: "gearshape.fill", theme: theme) {
                 feedback.playTap(using: settings)
                 showingSettings = true
             }
@@ -570,30 +575,30 @@ private extension GameView {
         )
     }
 
-    func replayBadge(size: CGSize) -> some View {
+    func replayBadge(size: CGSize, theme: ChapterTheme) -> some View {
         Text("回放模式")
             .font(.system(size: 12, weight: .bold))
             .foregroundStyle(Color.white.opacity(0.95))
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(
-                Color(red: 0.90, green: 0.47, blue: 0.28, opacity: 0.92),
+                theme.warningAccent.opacity(0.92),
                 in: Capsule()
             )
             .position(x: size.width * 0.50, y: size.height * 0.12)
             .allowsHitTesting(false)
     }
 
-    func topButton(symbol: String, action: @escaping () -> Void) -> some View {
+    func topButton(symbol: String, theme: ChapterTheme, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(Color.white.opacity(0.9))
                 .frame(width: 36, height: 36)
-                .background(Color.black.opacity(0.28), in: Circle())
+                .background(theme.badgeColor.opacity(0.30), in: Circle())
                 .overlay(
                     Circle()
-                        .stroke(Color.white.opacity(0.14), lineWidth: 1)
+                        .stroke(theme.cardAccent.opacity(0.20), lineWidth: 1)
                 )
         }
         .buttonStyle(.plain)
@@ -701,6 +706,7 @@ private extension GameView {
     func chapterLockPanel(
         size: CGSize,
         notice: ChapterLockNotice,
+        theme: ChapterTheme,
         onDismiss: @escaping () -> Void
     ) -> some View {
         VStack(spacing: 10) {
@@ -723,23 +729,23 @@ private extension GameView {
                     .padding(.horizontal, 18)
                     .padding(.vertical, 7)
                     .background(
-                        Color(red: 0.28, green: 0.62, blue: 0.86, opacity: 0.95),
+                        theme.badgeColor.opacity(0.95),
                         in: Capsule()
                     )
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(Color.black.opacity(0.38), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .background(theme.gameGlow.opacity(0.34), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .stroke(Color.white.opacity(0.16), lineWidth: 1)
+                .stroke(theme.cardAccent.opacity(0.16), lineWidth: 1)
         )
         .position(x: size.width * 0.5, y: size.height * 0.24)
         .transition(.opacity)
     }
 
-    func resultPanel(size: CGSize, onFinish: @escaping () -> Void) -> some View {
+    func resultPanel(size: CGSize, theme: ChapterTheme, onFinish: @escaping () -> Void) -> some View {
         let success = gameState.lastResultCorrect
         let outOfLives = !success && gameState.lives == 0
         let stars = gameState.lastEarnedStars
@@ -782,12 +788,12 @@ private extension GameView {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
                 .background(
-                    Color(red: 0.20, green: 0.46, blue: 0.62, opacity: 0.34),
+                    theme.badgeColor.opacity(0.28),
                     in: RoundedRectangle(cornerRadius: 14, style: .continuous)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                        .stroke(theme.cardAccent.opacity(0.18), lineWidth: 1)
                 )
             }
 
@@ -798,7 +804,7 @@ private extension GameView {
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(
                                 idx < stars
-                                ? Color(red: 1.0, green: 0.86, blue: 0.36)
+                                ? theme.warningAccent
                                 : Color.white.opacity(0.4)
                             )
                     }
@@ -812,22 +818,17 @@ private extension GameView {
                     .padding(.horizontal, 18)
                     .padding(.vertical, 8)
                     .background(
-                        Color(
-                            red: success ? 0.27 : 0.25,
-                            green: success ? 0.75 : 0.52,
-                            blue: success ? 0.52 : 0.74,
-                            opacity: 0.95
-                        ),
+                        (success ? theme.successAccent : theme.badgeColor).opacity(0.95),
                         in: Capsule()
                     )
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(Color.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(theme.gameGlow.opacity(0.28), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                .stroke(theme.cardAccent.opacity(0.16), lineWidth: 1)
         )
         .position(x: size.width * 0.5, y: size.height * 0.17)
         .transition(.opacity)

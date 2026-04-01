@@ -33,19 +33,21 @@ struct HomeView: View {
             let size = proxy.size
             let chapters = gameState.chapterSummaries()
             let activeChapter = chapters.first(where: { $0.chapter == selectedChapter }) ?? chapters[0]
+            let currentTheme = ChapterTheme.forChapter(gameState.currentChapter)
+            let activeTheme = ChapterTheme.forChapter(activeChapter.chapter)
             let levels = gameState.levelSummaries(for: activeChapter.chapter)
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 20) {
-                    heroCard(size: size)
+                    heroCard(size: size, theme: currentTheme)
                     chapterStrip(chapters: chapters)
-                    chapterPanel(summary: activeChapter, levels: levels)
+                    chapterPanel(summary: activeChapter, levels: levels, theme: activeTheme)
                 }
                 .padding(.horizontal, 18)
                 .padding(.top, 26)
                 .padding(.bottom, 34)
             }
-            .background(background(size: size))
+            .background(background(size: size, theme: activeTheme))
         }
         .sheet(isPresented: $showingSettings) {
             GameSettingsSheet(
@@ -59,7 +61,7 @@ struct HomeView: View {
 }
 
 private extension HomeView {
-    func heroCard(size: CGSize) -> some View {
+    func heroCard(size: CGSize, theme: ChapterTheme) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 6) {
@@ -67,7 +69,7 @@ private extension HomeView {
                         .font(.system(size: min(size.width * 0.12, 42), weight: .black, design: .rounded))
                         .foregroundStyle(Color.white)
 
-                    Text("章节推进、刷星回放、从任意已解锁关卡继续。")
+                    Text("当前章节：\(theme.descriptor.title) · 章节推进、刷星回放、从任意已解锁关卡继续。")
                         .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(Color.white.opacity(0.76))
                 }
@@ -89,9 +91,9 @@ private extension HomeView {
             }
 
             HStack(spacing: 10) {
-                HomeStatPill(title: "当前关卡", value: "第 \(gameState.levelNumber) 关")
-                HomeStatPill(title: "总星级", value: "⭐ \(gameState.totalStars)")
-                HomeStatPill(title: "检查点", value: "第 \(gameState.checkpointLevel) 关")
+                HomeStatPill(title: "当前关卡", value: "第 \(gameState.levelNumber) 关", accent: theme.cardAccent)
+                HomeStatPill(title: "总星级", value: "⭐ \(gameState.totalStars)", accent: theme.cardAccent)
+                HomeStatPill(title: "检查点", value: "第 \(gameState.checkpointLevel) 关", accent: theme.cardAccent)
             }
 
             HStack(spacing: 10) {
@@ -115,10 +117,7 @@ private extension HomeView {
                     .padding(.vertical, 16)
                     .background(
                         LinearGradient(
-                            colors: [
-                                Color(red: 0.58, green: 0.96, blue: 0.90),
-                                Color(red: 0.35, green: 0.83, blue: 1.0)
-                            ],
+                            colors: theme.selectedChapterGradient,
                             startPoint: .leading,
                             endPoint: .trailing
                         ),
@@ -141,7 +140,7 @@ private extension HomeView {
                     .background(Color.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                            .stroke(theme.cardAccent.opacity(0.28), lineWidth: 1)
                     )
                 }
                 .buttonStyle(.plain)
@@ -150,10 +149,7 @@ private extension HomeView {
         .padding(20)
         .background(
             LinearGradient(
-                colors: [
-                    Color(red: 0.12, green: 0.17, blue: 0.28),
-                    Color(red: 0.08, green: 0.27, blue: 0.35)
-                ],
+                colors: theme.heroGradient,
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             ),
@@ -161,7 +157,7 @@ private extension HomeView {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                .stroke(theme.cardAccent.opacity(0.20), lineWidth: 1)
         )
         .shadow(color: Color.black.opacity(0.24), radius: 20, x: 0, y: 10)
     }
@@ -192,8 +188,8 @@ private extension HomeView {
         }
     }
 
-    func chapterPanel(summary: ChapterSummary, levels: [LevelSummary]) -> some View {
-        let descriptor = LevelGenerator.chapterDescriptor(for: summary.chapter)
+    func chapterPanel(summary: ChapterSummary, levels: [LevelSummary], theme: ChapterTheme) -> some View {
+        let descriptor = theme.descriptor
 
         return VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top) {
@@ -209,13 +205,13 @@ private extension HomeView {
 
                 Spacer(minLength: 10)
 
-                chapterBadge(summary: summary)
+                chapterBadge(summary: summary, theme: theme)
             }
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(descriptor.title)
                     .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(Color(red: 0.63, green: 0.97, blue: 0.98))
+                    .foregroundStyle(theme.cardAccent)
 
                 Text(descriptor.detail)
                     .font(.system(size: 13, weight: .medium))
@@ -243,7 +239,7 @@ private extension HomeView {
                         guard level.isSelectable else { return }
                         playLevel(level.level)
                     } label: {
-                        LevelTile(level: level)
+                        LevelTile(level: level, theme: theme)
                     }
                     .buttonStyle(.plain)
                     .disabled(!level.isSelectable)
@@ -256,25 +252,29 @@ private extension HomeView {
         }
         .padding(18)
         .background(
-            Color.black.opacity(0.22),
+            LinearGradient(
+                colors: theme.panelGradient,
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
             in: RoundedRectangle(cornerRadius: 24, style: .continuous)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                .stroke(theme.cardAccent.opacity(0.16), lineWidth: 1)
         )
     }
 
-    func chapterBadge(summary: ChapterSummary) -> some View {
+    func chapterBadge(summary: ChapterSummary, theme: ChapterTheme) -> some View {
         let text: String
         let fill: Color
 
         if summary.isCurrent {
             text = "当前章节"
-            fill = Color(red: 0.28, green: 0.72, blue: 0.92)
+            fill = theme.badgeColor
         } else if summary.isUnlocked {
             text = "已解锁"
-            fill = Color(red: 0.22, green: 0.63, blue: 0.50)
+            fill = theme.successAccent
         } else {
             text = "未解锁"
             fill = Color(red: 0.43, green: 0.47, blue: 0.56)
@@ -288,21 +288,17 @@ private extension HomeView {
             .background(fill.opacity(0.9), in: Capsule())
     }
 
-    func background(size: CGSize) -> some View {
+    func background(size: CGSize, theme: ChapterTheme) -> some View {
         ZStack {
             LinearGradient(
-                colors: [
-                    Color(red: 0.04, green: 0.06, blue: 0.11),
-                    Color(red: 0.06, green: 0.10, blue: 0.16),
-                    Color(red: 0.08, green: 0.14, blue: 0.21)
-                ],
+                colors: theme.homeBackground,
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
 
             RadialGradient(
                 colors: [
-                    Color(red: 0.14, green: 0.35, blue: 0.44, opacity: 0.42),
+                    theme.homeGlow,
                     Color.clear
                 ],
                 center: .topTrailing,
@@ -310,11 +306,17 @@ private extension HomeView {
                 endRadius: min(size.width, size.height) * 0.72
             )
 
-            Circle()
-                .fill(Color(red: 0.72, green: 0.96, blue: 1.0, opacity: 0.08))
+            RoundedRectangle(cornerRadius: size.width * 0.14, style: .continuous)
+                .fill(theme.cardAccent.opacity(0.10))
                 .frame(width: size.width * 0.75, height: size.width * 0.75)
                 .blur(radius: 40)
                 .offset(x: size.width * 0.28, y: -size.height * 0.28)
+
+            Circle()
+                .fill(theme.badgeColor.opacity(0.08))
+                .frame(width: size.width * 0.58, height: size.width * 0.58)
+                .blur(radius: 24)
+                .offset(x: -size.width * 0.34, y: size.height * 0.20)
         }
         .ignoresSafeArea()
     }
@@ -343,12 +345,13 @@ private extension HomeView {
 private struct HomeStatPill: View {
     let title: String
     let value: String
+    let accent: Color
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(Color.white.opacity(0.6))
+                .foregroundStyle(accent.opacity(0.90))
 
             Text(value)
                 .font(.system(size: 13, weight: .bold))
@@ -364,6 +367,9 @@ private struct HomeStatPill: View {
 private struct ChapterPill: View {
     let summary: ChapterSummary
     let isSelected: Bool
+    private var theme: ChapterTheme {
+        ChapterTheme.forChapter(summary.chapter)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -388,10 +394,7 @@ private struct ChapterPill: View {
                 .fill(
                     isSelected
                         ? LinearGradient(
-                            colors: [
-                                Color(red: 0.28, green: 0.78, blue: 0.98),
-                                Color(red: 0.16, green: 0.57, blue: 0.95)
-                            ],
+                            colors: theme.selectedChapterGradient,
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
@@ -407,13 +410,14 @@ private struct ChapterPill: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.white.opacity(isSelected ? 0.0 : 0.08), lineWidth: 1)
+                .stroke(isSelected ? theme.cardAccent.opacity(0.30) : Color.white.opacity(0.08), lineWidth: 1)
         )
     }
 }
 
 private struct LevelTile: View {
     let level: LevelSummary
+    let theme: ChapterTheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -430,11 +434,11 @@ private struct LevelTile: View {
                         .foregroundStyle(Color.black.opacity(0.82))
                         .padding(.horizontal, 7)
                         .padding(.vertical, 4)
-                        .background(Color(red: 0.58, green: 0.96, blue: 0.90), in: Capsule())
+                        .background(theme.cardAccent, in: Capsule())
                 } else if level.isCheckpoint {
                     Image(systemName: "flag.fill")
                         .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(Color(red: 1.0, green: 0.83, blue: 0.50, opacity: level.isSelectable ? 0.96 : 0.42))
+                        .foregroundStyle(theme.warningAccent.opacity(level.isSelectable ? 0.96 : 0.42))
                 }
             }
 
@@ -444,7 +448,7 @@ private struct LevelTile: View {
                         .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(
                             index < level.stars
-                                ? Color(red: 1.0, green: 0.84, blue: 0.42)
+                                ? theme.warningAccent
                                 : Color.white.opacity(level.isSelectable ? 0.2 : 0.1)
                         )
                 }
@@ -457,7 +461,7 @@ private struct LevelTile: View {
             } else if level.stars > 0 {
                 Text("已完成")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Color(red: 0.60, green: 0.96, blue: 0.86))
+                    .foregroundStyle(theme.successAccent)
             } else {
                 Text("可挑战")
                     .font(.system(size: 11, weight: .semibold))
@@ -479,10 +483,7 @@ private struct LevelTile: View {
     private var backgroundFill: LinearGradient {
         if level.isCurrent {
             return LinearGradient(
-                colors: [
-                    Color(red: 0.22, green: 0.58, blue: 0.74),
-                    Color(red: 0.15, green: 0.37, blue: 0.58)
-                ],
+                colors: theme.currentTileGradient,
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -511,10 +512,10 @@ private struct LevelTile: View {
 
     private var borderColor: Color {
         if level.isCurrent {
-            return Color(red: 0.60, green: 0.96, blue: 0.90, opacity: 0.88)
+            return theme.cardAccent.opacity(0.88)
         }
         if level.isSelectable {
-            return Color.white.opacity(0.08)
+            return theme.cardAccent.opacity(0.18)
         }
         return Color.white.opacity(0.04)
     }
