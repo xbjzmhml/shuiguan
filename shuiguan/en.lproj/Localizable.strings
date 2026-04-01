@@ -21,7 +21,7 @@
 "settings.helpFooter.pending" = "The first-time gameplay guide has not been completed yet.";
 "settings.dataFooter" = "Resetting progress clears level, star, and checkpoint records.";
 "settings.resetDefaults.title" = "Restore default settings?";
-"settings.resetDefaults.message" = "Sound, haptics, and debug display will return to their default values.";
+"settings.resetDefaults.message" = "Sound and haptics will return to their default values.";
 "settings.resetDefaults.confirm" = "Restore";
 "settings.resetProgress.title" = "Reset game progress?";
 "settings.resetProgress.message" = "This will return you to Level 1 and clear all earned stars and checkpoints.";
@@ -84,6 +84,8 @@
 "game.hint.cup.detail" = "Each mistake costs 1 cup. If all 3 cups are gone, you restart from the latest checkpoint.";
 "game.replayMode" = "Replay Mode";
 "game.debug.correctFunnel" = "Correct: F%lld";
+"game.debug.enabled" = "Debug HUD On";
+"game.debug.disabled" = "Debug HUD Off";
 "game.lockedChapter.title" = "Chapter %lld is still locked";
 "game.lockedChapter.progress" = "Current stars: %lld/%lld";
 "game.lockedChapter.replay" = "Returned to Level %lld to replay for stars";

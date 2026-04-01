@@ -12,6 +12,7 @@ final class FeedbackService: ObservableObject {
 
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
+    private let pourPlayer = AVAudioPlayerNode()
     private let tapImpactGenerator = UIImpactFeedbackGenerator(style: .light)
     private let notificationGenerator = UINotificationFeedbackGenerator()
     private let sampleRate: Double = 44_100
@@ -21,7 +22,9 @@ final class FeedbackService: ObservableObject {
     init() {
         guard let format else { return }
         engine.attach(player)
+        engine.attach(pourPlayer)
         engine.connect(player, to: engine.mainMixerNode, format: format)
+        engine.connect(pourPlayer, to: engine.mainMixerNode, format: format)
         prepareHaptics()
     }
 
@@ -35,12 +38,15 @@ final class FeedbackService: ObservableObject {
         }
     }
 
-    func playPourStart(using settings: GameSettings) {
+    func playPourStart(duration: Double, using settings: GameSettings) {
+        stopPourTone()
         guard settings.soundEnabled else { return }
-        playPourTone()
+        playPourTone(duration: duration)
     }
 
     func playSuccess(using settings: GameSettings) {
+        stopPourTone()
+
         if settings.soundEnabled {
             playSuccessTone()
         }
@@ -50,6 +56,8 @@ final class FeedbackService: ObservableObject {
     }
 
     func playFailure(using settings: GameSettings) {
+        stopPourTone()
+
         if settings.soundEnabled {
             playFailureTone()
         }
@@ -66,6 +74,10 @@ final class FeedbackService: ObservableObject {
         triggerTapImpact()
     }
 
+    func stopPour() {
+        stopPourTone()
+    }
+
     func activateForForeground(using settings: GameSettings) {
         prepareHaptics()
         guard settings.soundEnabled else { return }
@@ -74,6 +86,7 @@ final class FeedbackService: ObservableObject {
 
     func suspendForBackground() {
         player.stop()
+        pourPlayer.stop()
         engine.stop()
         prepared = false
 
@@ -93,12 +106,14 @@ private extension FeedbackService {
         ])
     }
 
-    func playPourTone() {
-        play([
-            ToneStep(frequency: 620, duration: 0.08, amplitude: 0.10),
-            ToneStep(frequency: 760, duration: 0.09, amplitude: 0.12),
-            ToneStep(frequency: 700, duration: 0.10, amplitude: 0.08)
-        ])
+    func playPourTone(duration: Double) {
+        guard let buffer = buildPourBuffer(duration: duration * 0.92) else { return }
+        prepareAudioIfNeeded()
+        guard prepared else { return }
+
+        pourPlayer.stop()
+        pourPlayer.scheduleBuffer(buffer, at: nil, options: .interrupts, completionHandler: nil)
+        pourPlayer.play()
     }
 
     func playSuccessTone() {
@@ -129,6 +144,10 @@ private extension FeedbackService {
     func triggerNotification(_ type: UINotificationFeedbackGenerator.FeedbackType) {
         notificationGenerator.notificationOccurred(type)
         notificationGenerator.prepare()
+    }
+
+    func stopPourTone() {
+        pourPlayer.stop()
     }
 
     private func play(_ steps: [ToneStep]) {
@@ -183,6 +202,58 @@ private extension FeedbackService {
                 channel[cursor + frame] = sample
             }
             cursor += frames
+        }
+
+        buffer.frameLength = AVAudioFrameCount(frameCount)
+        return buffer
+    }
+
+    private func buildPourBuffer(duration: Double) -> AVAudioPCMBuffer? {
+        guard let format else { return nil }
+        let resolvedDuration = max(duration, 0.3)
+        let frameCount = Int(resolvedDuration * sampleRate)
+        guard frameCount > 0,
+              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frameCount)),
+              let channel = buffer.floatChannelData?[0] else {
+            return nil
+        }
+
+        var randomState: UInt64 = 0xCAFE_BABE
+        var lowNoise = 0.0
+        var splashNoise = 0.0
+
+        for frame in 0..<frameCount {
+            let progress = Double(frame) / Double(max(frameCount - 1, 1))
+            let attack = min(progress / 0.08, 1)
+            let fillRise = min(progress / 0.84, 1)
+            let nearFullFade = progress < 0.88 ? 1 : max(0, (1 - progress) / 0.12)
+            let envelope = attack * nearFullFade
+            let t = Double(frame) / sampleRate
+
+            let pitchLift = pow(fillRise, 0.85)
+            let baseFrequency = 210 + 135 * pitchLift
+            let shimmerFrequency = 470 + 250 * pitchLift
+            let ripple = sin(2 * .pi * (5.2 + fillRise * 1.8) * t)
+            let shimmer = sin(2 * .pi * shimmerFrequency * t + ripple * 0.8)
+            let base = sin(2 * .pi * baseFrequency * t + ripple * 0.3)
+            let overtone = sin(2 * .pi * (baseFrequency * 1.92) * t)
+
+            randomState = randomState &* 6364136223846793005 &+ 1442695040888963407
+            let white = (Double(randomState & 0xffff) / 32767.5) - 1
+            lowNoise = lowNoise * 0.94 + white * 0.06
+            splashNoise = splashNoise * 0.72 + (white - lowNoise) * 0.28
+
+            let bodyAmplitude = 0.030 + 0.042 * fillRise
+            let sparkleAmplitude = 0.010 + 0.018 * fillRise
+            let hissAmplitude = 0.012 + 0.020 * fillRise
+
+            let sample =
+                base * bodyAmplitude +
+                overtone * bodyAmplitude * 0.34 +
+                shimmer * sparkleAmplitude +
+                splashNoise * hissAmplitude
+
+            channel[frame] = Float(sample * envelope)
         }
 
         buffer.frameLength = AVAudioFrameCount(frameCount)

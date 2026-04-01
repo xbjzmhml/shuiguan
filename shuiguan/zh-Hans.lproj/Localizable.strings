@@ -21,7 +21,7 @@
 "settings.helpFooter.pending" = "首次玩法说明还未完成。";
 "settings.dataFooter" = "重置进度会清空关卡、星级和检查点记录。";
 "settings.resetDefaults.title" = "恢复默认设置？";
-"settings.resetDefaults.message" = "音效、震动和调试显示会恢复为默认值。";
+"settings.resetDefaults.message" = "音效和震动会恢复为默认值。";
 "settings.resetDefaults.confirm" = "恢复";
 "settings.resetProgress.title" = "重置游戏进度？";
 "settings.resetProgress.message" = "这会回到第 1 关，并清空已获得的星级和检查点。";
@@ -84,6 +84,8 @@
 "game.hint.cup.detail" = "每次失误扣 1 杯水，3 杯用完就会退回最近的检查点重来。";
 "game.replayMode" = "回放模式";
 "game.debug.correctFunnel" = "正确：F%lld";
+"game.debug.enabled" = "调试已开启";
+"game.debug.disabled" = "调试已关闭";
 "game.lockedChapter.title" = "第 %lld 章未解锁";
 "game.lockedChapter.progress" = "当前 %lld/%lld 星";
 "game.lockedChapter.replay" = "已回到第 %lld 关刷星";

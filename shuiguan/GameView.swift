@@ -16,6 +16,9 @@ struct GameView: View {
     @State private var activeStarBurst: StarBurst?
     @State private var showingSettings = false
     @State private var tutorialPulse = false
+    @State private var debugCupTapCount = 0
+    @State private var debugCupResetTask: Task<Void, Never>?
+    @State private var debugToast: DebugToast?
 
     var body: some View {
         GeometryReader { proxy in
@@ -64,11 +67,7 @@ struct GameView: View {
                 ) { pipeID in
                     feedback.playTap(using: settings)
                     gameState.startPour(pipeID: pipeID, correctPipeID: level.correctPipeID)
-
-                    Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: 90_000_000)
-                        feedback.playPourStart(using: settings)
-                    }
+                    feedback.playPourStart(duration: gameState.animationDuration, using: settings)
                 }
 
                 if gameState.phase == .result {
@@ -83,6 +82,11 @@ struct GameView: View {
                         .id(banner.id)
                 }
 
+                if let debugToast {
+                    debugToastPanel(size: size, toast: debugToast, theme: theme)
+                        .id(debugToast.id)
+                }
+
                 livesPanel(size: size, theme: theme)
                 chapterStarsPanel(
                     size: size,
@@ -90,12 +94,10 @@ struct GameView: View {
                     nextProgress: gameState.chapterProgressForHUD(),
                     theme: theme
                 )
-#if DEBUG
                 if settings.debugHUDEnabled {
                     answerHintPanel(size: size, correctFunnelID: level.correctPipeID)
                     progressDebugPanel(size: size)
                 }
-#endif
 
                 if let lockNotice = gameState.chapterLockNotice {
                     chapterLockPanel(size: size, notice: lockNotice, theme: theme) {
@@ -108,15 +110,6 @@ struct GameView: View {
                 if gameState.isReplaying {
                     replayBadge(size: size, theme: theme)
                 }
-
-                Text("MAZE v43")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.white.opacity(0.7))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(theme.badgeColor.opacity(0.28), in: Capsule())
-                    .position(x: size.width * 0.15, y: size.height * 0.12)
-                    .allowsHitTesting(false)
             }
             .contentShape(Rectangle())
             .onAppear {
@@ -124,6 +117,10 @@ struct GameView: View {
             }
             .onChange(of: gameState.phase) { phase in
                 handlePhaseChange(phase, pipes: pipes, size: size)
+            }
+            .onDisappear {
+                debugCupResetTask?.cancel()
+                feedback.stopPour()
             }
             .sheet(isPresented: $showingSettings) {
                 GameSettingsSheet(
@@ -386,32 +383,44 @@ private extension GameView {
     }
 
     func livesPanel(size: CGSize, theme: ChapterTheme) -> some View {
-        HStack(spacing: 10) {
-            ForEach(0..<gameState.maxLives, id: \.self) { idx in
-                WaterCupView(isFilled: idx < gameState.lives)
-                    .frame(width: size.width * 0.055, height: size.height * 0.05)
-                    .scaleEffect(idx == lostCupIndex && lostCupDropping ? 0.88 : 1)
-                    .rotationEffect(.degrees(idx == lostCupIndex && lostCupDropping ? -14 : 0))
-                    .offset(y: idx == lostCupIndex && lostCupDropping ? 9 : 0)
-                    .overlay {
-                        if idx == lostCupIndex {
-                            RoundedRectangle(cornerRadius: size.width * 0.02, style: .continuous)
-                                .stroke(
-                                    theme.warningAccent.opacity(lostCupDropping ? 0.9 : 0.45),
-                                    lineWidth: 2
-                                )
-                                .blur(radius: lostCupDropping ? 0 : 1)
+        let cupWidth = size.width * 0.055
+        let cupHeight = size.height * 0.05
+        let spacing: CGFloat = 10
+
+        return ZStack(alignment: .leading) {
+            HStack(spacing: spacing) {
+                ForEach(0..<gameState.maxLives, id: \.self) { idx in
+                    WaterCupView(isFilled: idx < gameState.lives)
+                        .frame(width: cupWidth, height: cupHeight)
+                        .scaleEffect(idx == lostCupIndex && lostCupDropping ? 0.88 : 1)
+                        .rotationEffect(.degrees(idx == lostCupIndex && lostCupDropping ? -14 : 0))
+                        .offset(y: idx == lostCupIndex && lostCupDropping ? 9 : 0)
+                        .overlay {
+                            if idx == lostCupIndex {
+                                RoundedRectangle(cornerRadius: size.width * 0.02, style: .continuous)
+                                    .stroke(
+                                        theme.warningAccent.opacity(lostCupDropping ? 0.9 : 0.45),
+                                        lineWidth: 2
+                                    )
+                                    .blur(radius: lostCupDropping ? 0 : 1)
+                                }
                         }
-                    }
-                    .opacity(idx == lostCupIndex && lostCupDropping ? 0.6 : 1)
+                        .opacity(idx == lostCupIndex && lostCupDropping ? 0.6 : 1)
+                }
             }
+
+            Color.clear
+                .frame(width: cupWidth + 18, height: cupHeight + 18)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    registerDebugCupTap()
+                }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .background(theme.badgeColor.opacity(0.22), in: Capsule())
         .position(x: size.width * 0.18, y: size.height * 0.958)
         .modifier(ShakeEffect(animatableData: livesShakeTick))
-        .allowsHitTesting(false)
     }
 
     func chapterStarsPanel(
@@ -641,6 +650,21 @@ private extension GameView {
             .allowsHitTesting(false)
     }
 
+    func debugToastPanel(size: CGSize, toast: DebugToast, theme: ChapterTheme) -> some View {
+        Text(toast.text)
+            .font(.system(size: 12, weight: .bold))
+            .foregroundStyle(Color.white.opacity(0.94))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(theme.badgeColor.opacity(0.82), in: Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(theme.cardAccent.opacity(0.25), lineWidth: 1)
+            )
+            .position(x: size.width * 0.26, y: size.height * 0.885)
+            .allowsHitTesting(false)
+    }
+
     func handlePhaseChange(_ phase: RoundPhase, pipes: [Pipe], size: CGSize) {
         switch phase {
         case .success:
@@ -650,6 +674,7 @@ private extension GameView {
             feedback.playFailure(using: settings)
             playFailureFeedback()
         case .idle:
+            feedback.stopPour()
             wrongOutletFlashPipeID = nil
             wrongOutletFlashPulse = false
             lostCupIndex = nil
@@ -657,6 +682,50 @@ private extension GameView {
             activeStarBurst = nil
         default:
             break
+        }
+    }
+
+    func registerDebugCupTap() {
+        if settings.debugHUDEnabled {
+            debugCupResetTask?.cancel()
+            debugCupResetTask = nil
+            debugCupTapCount = 0
+            settings.toggleDebugHUDEnabled()
+            feedback.playTap(using: settings)
+            showDebugToast(L10n.tr("game.debug.disabled"))
+            return
+        }
+
+        debugCupTapCount += 1
+        debugCupResetTask?.cancel()
+
+        guard debugCupTapCount >= 10 else {
+            debugCupResetTask = Task { @MainActor in
+                do {
+                    try await Task.sleep(nanoseconds: 5_000_000_000)
+                } catch {
+                    return
+                }
+                debugCupTapCount = 0
+            }
+            return
+        }
+
+        debugCupTapCount = 0
+        settings.toggleDebugHUDEnabled()
+        feedback.playTap(using: settings)
+        debugCupResetTask = nil
+        showDebugToast(L10n.tr("game.debug.enabled"))
+    }
+
+    func showDebugToast(_ text: String) {
+        let toast = DebugToast(text: text)
+        debugToast = toast
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_300_000_000)
+            if debugToast?.id == toast.id {
+                debugToast = nil
+            }
         }
     }
 
@@ -1002,6 +1071,11 @@ private struct StarBurst: Identifiable {
     let count: Int
     let start: CGPoint
     let destination: CGPoint
+}
+
+private struct DebugToast: Identifiable {
+    let id = UUID()
+    let text: String
 }
 
 private struct FlyingStarsOverlay: View {

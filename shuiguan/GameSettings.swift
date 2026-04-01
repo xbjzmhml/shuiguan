@@ -17,9 +17,7 @@ final class GameSettings: ObservableObject {
         didSet { storage.set(hapticsEnabled, forKey: StorageKey.hapticsEnabled) }
     }
 
-    @Published var debugHUDEnabled: Bool {
-        didSet { storage.set(debugHUDEnabled, forKey: StorageKey.debugHUDEnabled) }
-    }
+    @Published var debugHUDEnabled: Bool = Defaults.debugHUDEnabled
 
     @Published private(set) var tutorialGuideCompleted: Bool {
         didSet { storage.set(tutorialGuideCompleted, forKey: StorageKey.tutorialGuideCompleted) }
@@ -30,8 +28,8 @@ final class GameSettings: ObservableObject {
     private enum StorageKey {
         static let soundEnabled = "shuiguan.settings.soundEnabled"
         static let hapticsEnabled = "shuiguan.settings.hapticsEnabled"
-        static let debugHUDEnabled = "shuiguan.settings.debugHUDEnabled"
-        static let all = [soundEnabled, hapticsEnabled, debugHUDEnabled]
+        static let legacyDebugHUDEnabled = "shuiguan.settings.debugHUDEnabled"
+        static let all = [soundEnabled, hapticsEnabled]
         static let tutorialGuideCompleted = "shuiguan.settings.tutorialGuideCompleted"
     }
 
@@ -42,16 +40,13 @@ final class GameSettings: ObservableObject {
         if storage.object(forKey: StorageKey.hapticsEnabled) == nil {
             storage.set(Defaults.hapticsEnabled, forKey: StorageKey.hapticsEnabled)
         }
-        if storage.object(forKey: StorageKey.debugHUDEnabled) == nil {
-            storage.set(Defaults.debugHUDEnabled, forKey: StorageKey.debugHUDEnabled)
-        }
+        storage.removeObject(forKey: StorageKey.legacyDebugHUDEnabled)
         if storage.object(forKey: StorageKey.tutorialGuideCompleted) == nil {
             storage.set(Defaults.tutorialGuideCompleted, forKey: StorageKey.tutorialGuideCompleted)
         }
 
         self.soundEnabled = storage.bool(forKey: StorageKey.soundEnabled)
         self.hapticsEnabled = storage.bool(forKey: StorageKey.hapticsEnabled)
-        self.debugHUDEnabled = storage.bool(forKey: StorageKey.debugHUDEnabled)
         self.tutorialGuideCompleted = storage.bool(forKey: StorageKey.tutorialGuideCompleted)
     }
 
@@ -62,7 +57,12 @@ final class GameSettings: ObservableObject {
 
         soundEnabled = Defaults.soundEnabled
         hapticsEnabled = Defaults.hapticsEnabled
+        storage.removeObject(forKey: StorageKey.legacyDebugHUDEnabled)
         debugHUDEnabled = Defaults.debugHUDEnabled
+    }
+
+    func toggleDebugHUDEnabled() {
+        debugHUDEnabled.toggle()
     }
 
     func markTutorialGuideCompleted() {
@@ -101,13 +101,16 @@ struct GameSettingsSheet: View {
     private var formBody: some View {
         let form = Form {
             feedbackSection
-            debugSection
             helpSection
             dataSection
         }
         .onChange(of: settings.soundEnabled) { isEnabled in
-            guard isEnabled, !suppressPreview else { return }
-            feedback.previewSoundToggleEnabled()
+            if isEnabled {
+                guard !suppressPreview else { return }
+                feedback.previewSoundToggleEnabled()
+            } else {
+                feedback.stopPour()
+            }
         }
         .onChange(of: settings.hapticsEnabled) { isEnabled in
             guard isEnabled, !suppressPreview else { return }
@@ -147,17 +150,6 @@ struct GameSettingsSheet: View {
         } header: {
             Text(L10n.tr("settings.section.feedback"))
         }
-    }
-
-    @ViewBuilder
-    private var debugSection: some View {
-#if DEBUG
-        Section {
-            Toggle(L10n.tr("settings.showDebugInfo"), isOn: $settings.debugHUDEnabled)
-        } header: {
-            Text(L10n.tr("settings.section.debug"))
-        }
-#endif
     }
 
     private var dataSection: some View {
