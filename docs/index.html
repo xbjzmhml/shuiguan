@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pipe Tracer</title>
+  <style>
+    :root {
+      --bg: #071422;
+      --panel: #0d2236;
+      --line: rgba(145, 224, 255, 0.18);
+      --text: #eef9ff;
+      --muted: #9bc2d6;
+      --accent: #63f2ff;
+      --accent-2: #76ff8f;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top right, rgba(118, 255, 143, 0.12), transparent 30%),
+        radial-gradient(circle at top left, rgba(99, 242, 255, 0.18), transparent 34%),
+        linear-gradient(180deg, #071422 0%, #0a1c2f 100%);
+      color: var(--text);
+    }
+
+    main {
+      max-width: 880px;
+      margin: 0 auto;
+      padding: 40px 20px 64px;
+    }
+
+    .hero,
+    .card {
+      background: linear-gradient(180deg, rgba(13, 34, 54, 0.96), rgba(8, 25, 40, 0.96));
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.24);
+    }
+
+    .hero {
+      padding: 28px;
+      margin-bottom: 18px;
+    }
+
+    .eyebrow {
+      display: inline-block;
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    h1, h2 { margin: 0 0 10px; }
+    h1 { font-size: clamp(34px, 7vw, 56px); }
+    h2 { font-size: 22px; }
+    p { margin: 0; line-height: 1.7; color: var(--muted); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 18px;
+      margin-top: 18px;
+    }
+
+    .card {
+      padding: 22px;
+    }
+
+    .links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 140px;
+      padding: 13px 18px;
+      border-radius: 999px;
+      border: 1px solid rgba(99, 242, 255, 0.24);
+      color: var(--text);
+      text-decoration: none;
+      background: rgba(99, 242, 255, 0.08);
+      font-weight: 700;
+    }
+
+    .link.secondary {
+      background: rgba(118, 255, 143, 0.08);
+      border-color: rgba(118, 255, 143, 0.2);
+    }
+
+    ul {
+      margin: 14px 0 0;
+      padding-left: 18px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .lang {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <div class="eyebrow">Pipe Tracer</div>
+      <h1>Support and Privacy</h1>
+      <p>Official support and privacy pages for Pipe Tracer, a single-player offline pipe puzzle game by Xu Bo.</p>
+      <div class="links">
+        <a class="link" href="./support/">Support</a>
+        <a class="link secondary" href="./privacy/">Privacy Policy</a>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <h2>Support</h2>
+        <p>Need help with installation, gameplay, or feedback? Use the support page for contact details and basic troubleshooting.</p>
+        <div class="lang">
+          <p>中文：如果你需要安装、玩法或问题反馈帮助，请查看技术支持页。</p>
+        </div>
+      </article>
+
+      <article class="card">
+        <h2>Privacy</h2>
+        <p>Pipe Tracer is currently a fully offline game and does not require account registration or login.</p>
+        <div class="lang">
+          <p>中文：Pipe Tracer 当前为纯离线游戏，不需要注册或登录。</p>
+        </div>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

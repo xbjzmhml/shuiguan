@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pipe Tracer Support</title>
+  <style>
+    :root {
+      --bg: #081321;
+      --panel: #0d2134;
+      --line: rgba(130, 224, 255, 0.18);
+      --text: #eff9ff;
+      --muted: #9fbfd1;
+      --accent: #61efff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #07121f 0%, #0b1d2f 100%);
+      color: var(--text);
+    }
+    main {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 32px 20px 60px;
+    }
+    .panel {
+      background: linear-gradient(180deg, rgba(13, 33, 52, 0.96), rgba(9, 25, 40, 0.96));
+      border: 1px solid var(--line);
+      border-radius: 26px;
+      padding: 26px;
+      margin-bottom: 16px;
+    }
+    .eyebrow {
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    h1, h2 {
+      margin: 0 0 10px;
+    }
+    h1 { font-size: clamp(32px, 6vw, 52px); }
+    h2 { font-size: 22px; }
+    p, li {
+      color: var(--muted);
+      line-height: 1.7;
+    }
+    ul {
+      margin: 12px 0 0;
+      padding-left: 18px;
+    }
+    a { color: var(--text); }
+    .lang {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="panel">
+      <div class="eyebrow">Support</div>
+      <h1>Pipe Tracer Support</h1>
+      <p>Pipe Tracer is a single-player offline puzzle game developed by Xu Bo.</p>
+      <div class="lang">
+        <p>中文：Pipe Tracer 是一款由 Xu Bo 开发的单机离线益智游戏。</p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Contact</h2>
+      <p>Email: <a href="mailto:805700322@qq.com">YOUR_EMAIL@example.com</a></p>
+      <p>Please replace the email address above with your real support email before publishing.</p>
+      <div class="lang">
+        <p>中文：联系邮箱：<a href="mailto:805700322@qq.com">YOUR_EMAIL@example.com</a></p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Common Information</h2>
+      <ul>
+        <li>The game currently works fully offline.</li>
+        <li>No account, login, or payment is required.</li>
+        <li>If you encounter a bug, please include your device model and iOS version in your email.</li>
+      </ul>
+      <div class="lang">
+        <ul>
+          <li>当前游戏可以完全离线运行。</li>
+          <li>不需要账号、登录或支付。</li>
+          <li>如果你反馈问题，建议在邮件里附上设备型号和 iOS 版本。</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
