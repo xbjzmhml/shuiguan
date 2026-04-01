@@ -457,15 +457,15 @@ final class GameState: ObservableObject {
         let message: String
         switch streak {
         case 2:
-            message = "连中 x2 很棒"
+            message = L10n.tr("praise.streak2")
         case 3:
-            message = "连中 x3 太强了"
+            message = L10n.tr("praise.streak3")
         case 4:
-            message = "连中 x4 继续保持"
+            message = L10n.tr("praise.streak4")
         case 5:
-            message = "连中 x5 神准"
+            message = L10n.tr("praise.streak5")
         default:
-            message = "连中 x\(streak) 传奇"
+            message = L10n.tr("praise.streakDefault", L10n.int(streak))
         }
 
         let intensity = min(CGFloat(streak - 1), 8)
@@ -598,23 +598,33 @@ final class GameState: ObservableObject {
             if gateAfter.isUnlocked {
                 let descriptor = LevelGenerator.chapterDescriptor(for: gateAfter.targetChapter)
                 return ChapterMilestoneNotice(
-                    title: "第\(chapter)章完成",
-                    detail: "已解锁第\(gateAfter.targetChapter)章 · \(descriptor.title)"
+                    title: L10n.tr("milestone.chapterComplete.unlocked.title", L10n.int(chapter)),
+                    detail: L10n.tr(
+                        "milestone.chapterComplete.unlocked.detail",
+                        L10n.int(gateAfter.targetChapter),
+                        descriptor.title
+                    )
                 )
             }
 
             let remain = max(gateAfter.requiredStars - gateAfter.earnedStars, 0)
             return ChapterMilestoneNotice(
-                title: "第\(chapter)章完成",
-                detail: "当前 \(gateAfter.earnedStars)/\(gateAfter.requiredStars) 星，再刷 \(remain) 星解锁第\(gateAfter.targetChapter)章"
+                title: L10n.tr("milestone.chapterComplete.locked.title", L10n.int(chapter)),
+                detail: L10n.tr(
+                    "milestone.chapterComplete.locked.detail",
+                    L10n.int(gateAfter.earnedStars),
+                    L10n.int(gateAfter.requiredStars),
+                    L10n.int(remain),
+                    L10n.int(gateAfter.targetChapter)
+                )
             )
         }
 
         if !gateBefore.isUnlocked && gateAfter.isUnlocked {
             let descriptor = LevelGenerator.chapterDescriptor(for: gateAfter.targetChapter)
             return ChapterMilestoneNotice(
-                title: "第\(gateAfter.targetChapter)章已解锁",
-                detail: "\(descriptor.title) 已开放，可以从首页直接进入。"
+                title: L10n.tr("milestone.chapterUnlocked.title", L10n.int(gateAfter.targetChapter)),
+                detail: L10n.tr("milestone.chapterUnlocked.detail", descriptor.title)
             )
         }
 

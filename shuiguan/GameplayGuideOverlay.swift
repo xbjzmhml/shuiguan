@@ -14,29 +14,31 @@ struct GameplayGuideOverlay: View {
 
     @State private var page = 0
 
-    private let steps = [
-        GameplayGuideStep(
-            id: 0,
-            symbol: "hand.tap.fill",
-            eyebrow: "STEP 1",
-            title: "点上方入口开始放水",
-            detail: "每次只能选一根漏斗。水会顺着你选中的那条管路一直流下去。"
-        ),
-        GameplayGuideStep(
-            id: 1,
-            symbol: "arrow.triangle.branch",
-            eyebrow: "STEP 2",
-            title: "看清最终是不是流进主管",
-            detail: "拐弯、交叉和回环都会干扰判断。只有最后汇入下方主管的那根才是正确入口。"
-        ),
-        GameplayGuideStep(
-            id: 2,
-            symbol: "drop.triangle.fill",
-            eyebrow: "STEP 3",
-            title: "失误会扣水杯，但星级会保留",
-            detail: "选错会扣 1 杯水，水杯用完回到检查点。回放旧关只刷新最佳星级，不会覆盖主线进度。"
-        )
-    ]
+    private var steps: [GameplayGuideStep] {
+        [
+            GameplayGuideStep(
+                id: 0,
+                symbol: "hand.tap.fill",
+                eyebrow: L10n.tr("guide.stepLabel", L10n.int(1)),
+                title: L10n.tr("guide.step1.title"),
+                detail: L10n.tr("guide.step1.detail")
+            ),
+            GameplayGuideStep(
+                id: 1,
+                symbol: "arrow.triangle.branch",
+                eyebrow: L10n.tr("guide.stepLabel", L10n.int(2)),
+                title: L10n.tr("guide.step2.title"),
+                detail: L10n.tr("guide.step2.detail")
+            ),
+            GameplayGuideStep(
+                id: 2,
+                symbol: "drop.triangle.fill",
+                eyebrow: L10n.tr("guide.stepLabel", L10n.int(3)),
+                title: L10n.tr("guide.step3.title"),
+                detail: L10n.tr("guide.step3.detail")
+            )
+        ]
+    }
 
     var body: some View {
         ZStack {
@@ -102,7 +104,7 @@ struct GameplayGuideOverlay: View {
 
                 HStack(spacing: 10) {
                     if page > 0 {
-                        Button("上一步") {
+                        Button(L10n.tr("common.previous")) {
                             page = max(page - 1, 0)
                         }
                         .buttonStyle(.plain)
@@ -112,7 +114,7 @@ struct GameplayGuideOverlay: View {
                         .padding(.vertical, 12)
                         .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                     } else if isFirstRun {
-                        Button("跳过") {
+                        Button(L10n.tr("common.skip")) {
                             onClose()
                         }
                         .buttonStyle(.plain)
@@ -126,7 +128,7 @@ struct GameplayGuideOverlay: View {
                     Spacer(minLength: 8)
 
                     if page < steps.count - 1 {
-                        Button("下一步") {
+                        Button(L10n.tr("common.next")) {
                             page += 1
                         }
                         .buttonStyle(.plain)
@@ -136,7 +138,7 @@ struct GameplayGuideOverlay: View {
                         .padding(.vertical, 12)
                         .background(Color(red: 0.63, green: 0.97, blue: 0.98), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                     } else {
-                        Button(isFirstRun ? "开始试玩" : "关闭说明") {
+                        Button(isFirstRun ? L10n.tr("guide.finishFirstRun") : L10n.tr("guide.finish")) {
                             onClose()
                         }
                         .buttonStyle(.plain)

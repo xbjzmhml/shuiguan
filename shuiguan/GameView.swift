@@ -422,9 +422,14 @@ private extension GameView {
     ) -> some View {
         let progressText: String = {
             if nextProgress.isUnlocked {
-                return "解锁第\(nextProgress.targetChapter)章 已达成"
+                return L10n.tr("game.chapter.unlockProgressComplete", L10n.int(nextProgress.targetChapter))
             }
-            return "解锁第\(nextProgress.targetChapter)章 \(nextProgress.earnedStars)/\(nextProgress.requiredStars)"
+            return L10n.tr(
+                "game.chapter.unlockProgress",
+                L10n.int(nextProgress.targetChapter),
+                L10n.int(nextProgress.earnedStars),
+                L10n.int(nextProgress.requiredStars)
+            )
         }()
         let progressColor = nextProgress.isUnlocked
             ? theme.successAccent
@@ -434,7 +439,7 @@ private extension GameView {
             Text("⭐ \(gameState.totalStars)")
                 .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(Color.white.opacity(0.92))
-            Text("当前：第\(currentChapter)章")
+            Text(L10n.tr("game.chapter.current", L10n.int(currentChapter)))
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(Color.white.opacity(0.82))
             Text(theme.descriptor.title)
@@ -498,8 +503,8 @@ private extension GameView {
             }
 
             tutorialBubble(
-                title: "先从上方开始",
-                detail: "点任意漏斗放水，水会沿你选中的那根管子流到底。",
+                title: L10n.tr("game.hint.start.title"),
+                detail: L10n.tr("game.hint.start.detail"),
                 symbol: "hand.tap.fill",
                 width: min(size.width * 0.72, 310)
             )
@@ -517,8 +522,8 @@ private extension GameView {
                 .position(x: size.width * 0.5, y: size.height * 0.93)
 
             tutorialBubble(
-                title: "看清最终出口",
-                detail: "观察拐弯和交叉，只有最后流进下方主管的入口才算选对。",
+                title: L10n.tr("game.hint.exit.title"),
+                detail: L10n.tr("game.hint.exit.detail"),
                 symbol: "arrow.triangle.branch",
                 width: min(size.width * 0.78, 340)
             )
@@ -536,8 +541,8 @@ private extension GameView {
                 .position(x: size.width * 0.18, y: size.height * 0.958)
 
             tutorialBubble(
-                title: "选错会扣水杯",
-                detail: "每次失误扣 1 杯水，3 杯用完就会退回最近的检查点重来。",
+                title: L10n.tr("game.hint.cup.title"),
+                detail: L10n.tr("game.hint.cup.detail"),
                 symbol: "drop.triangle.fill",
                 width: min(size.width * 0.78, 340)
             )
@@ -576,7 +581,7 @@ private extension GameView {
     }
 
     func replayBadge(size: CGSize, theme: ChapterTheme) -> some View {
-        Text("回放模式")
+        Text(L10n.tr("game.replayMode"))
             .font(.system(size: 12, weight: .bold))
             .foregroundStyle(Color.white.opacity(0.95))
             .padding(.horizontal, 10)
@@ -605,7 +610,7 @@ private extension GameView {
     }
 
     func answerHintPanel(size: CGSize, correctFunnelID: Int) -> some View {
-        Text("Correct: F\(correctFunnelID + 1)")
+        Text(L10n.tr("game.debug.correctFunnel", L10n.int(correctFunnelID + 1)))
             .font(.system(size: 12, weight: .semibold))
             .foregroundStyle(Color.white.opacity(0.85))
             .padding(.horizontal, 10)
@@ -710,20 +715,26 @@ private extension GameView {
         onDismiss: @escaping () -> Void
     ) -> some View {
         VStack(spacing: 10) {
-            Text("第\(notice.targetChapter)章未解锁")
+            Text(L10n.tr("game.lockedChapter.title", L10n.int(notice.targetChapter)))
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(Color.white.opacity(0.96))
 
-            Text("当前 \(notice.earnedStars)/\(notice.requiredStars) 星")
+            Text(
+                L10n.tr(
+                    "game.lockedChapter.progress",
+                    L10n.int(notice.earnedStars),
+                    L10n.int(notice.requiredStars)
+                )
+            )
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(Color.white.opacity(0.82))
 
-            Text("已回到第 \(notice.replayStartLevel) 关刷星")
+            Text(L10n.tr("game.lockedChapter.replay", L10n.int(notice.replayStartLevel)))
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(Color.white.opacity(0.74))
 
             Button(action: onDismiss) {
-                Text("知道了")
+                Text(L10n.tr("common.gotIt"))
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Color.white)
                     .padding(.horizontal, 18)
@@ -750,19 +761,23 @@ private extension GameView {
         let outOfLives = !success && gameState.lives == 0
         let stars = gameState.lastEarnedStars
         let title: String = {
-            if success { return "通关成功" }
-            if outOfLives { return "水杯用完，回到第 \(gameState.checkpointLevel) 关" }
-            return "失败，扣 1 杯水"
+            if success { return L10n.tr("game.result.success") }
+            if outOfLives { return L10n.tr("game.result.outOfLives", L10n.int(gameState.checkpointLevel)) }
+            return L10n.tr("game.result.fail")
         }()
         let buttonTitle: String = {
-            if success { return "下一关" }
-            if outOfLives { return "重新开始" }
-            return "重试"
+            if success { return L10n.tr("game.result.nextLevel") }
+            if outOfLives { return L10n.tr("game.result.restart") }
+            return L10n.tr("game.result.retry")
         }()
         let subtitle: String = {
-            if success { return "本关 \(stars) 星 · 总星 \(gameState.totalStars)" }
-            if outOfLives { return "已回退到第 \(gameState.checkpointLevel) 关" }
-            return "剩余水杯 \(gameState.lives)/\(gameState.maxLives)"
+            if success {
+                return L10n.tr("game.result.successSubtitle", L10n.int(stars), L10n.int(gameState.totalStars))
+            }
+            if outOfLives {
+                return L10n.tr("game.result.outOfLivesSubtitle", L10n.int(gameState.checkpointLevel))
+            }
+            return L10n.tr("game.result.failSubtitle", L10n.int(gameState.lives), L10n.int(gameState.maxLives))
         }()
 
         return VStack(spacing: 10) {

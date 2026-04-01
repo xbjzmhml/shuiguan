@@ -65,11 +65,11 @@ private extension HomeView {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("水管迷阵")
+                    Text(L10n.tr("home.title"))
                         .font(.system(size: min(size.width * 0.12, 42), weight: .black, design: .rounded))
                         .foregroundStyle(Color.white)
 
-                    Text("当前章节：\(theme.descriptor.title) · 章节推进、刷星回放、从任意已解锁关卡继续。")
+                    Text(L10n.tr("home.hero.subtitle", theme.descriptor.title))
                         .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(Color.white.opacity(0.76))
                 }
@@ -91,18 +91,30 @@ private extension HomeView {
             }
 
             HStack(spacing: 10) {
-                HomeStatPill(title: "当前关卡", value: "第 \(gameState.levelNumber) 关", accent: theme.cardAccent)
-                HomeStatPill(title: "总星级", value: "⭐ \(gameState.totalStars)", accent: theme.cardAccent)
-                HomeStatPill(title: "检查点", value: "第 \(gameState.checkpointLevel) 关", accent: theme.cardAccent)
+                HomeStatPill(
+                    title: L10n.tr("home.stat.currentLevel"),
+                    value: L10n.tr("home.level.value", L10n.int(gameState.levelNumber)),
+                    accent: theme.cardAccent
+                )
+                HomeStatPill(
+                    title: L10n.tr("home.stat.totalStars"),
+                    value: L10n.tr("home.totalStars.value", L10n.int(gameState.totalStars)),
+                    accent: theme.cardAccent
+                )
+                HomeStatPill(
+                    title: L10n.tr("home.stat.checkpoint"),
+                    value: L10n.tr("home.checkpoint.value", L10n.int(gameState.checkpointLevel)),
+                    accent: theme.cardAccent
+                )
             }
 
             HStack(spacing: 10) {
                 Button(action: continueGame) {
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("继续主线")
+                            Text(L10n.tr("home.continue.title"))
                                 .font(.system(size: 17, weight: .bold))
-                            Text("从第 \(gameState.levelNumber) 关进入")
+                            Text(L10n.tr("home.continue.subtitle", L10n.int(gameState.levelNumber)))
                                 .font(.system(size: 13, weight: .medium))
                                 .foregroundStyle(Color.black.opacity(0.68))
                         }
@@ -130,7 +142,7 @@ private extension HomeView {
                     VStack(spacing: 6) {
                         Image(systemName: "questionmark.circle.fill")
                             .font(.system(size: 18, weight: .bold))
-                        Text("玩法说明")
+                        Text(L10n.tr("home.guide"))
                             .font(.system(size: 12, weight: .bold))
                     }
                     .foregroundStyle(Color.white.opacity(0.92))
@@ -164,7 +176,7 @@ private extension HomeView {
 
     func chapterStrip(chapters: [ChapterSummary]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("章节进度")
+            Text(L10n.tr("home.chapterProgress"))
                 .font(.system(size: 18, weight: .bold))
                 .foregroundStyle(Color.white.opacity(0.96))
 
@@ -194,11 +206,19 @@ private extension HomeView {
         return VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("第 \(summary.chapter) 章")
+                    Text(L10n.tr("home.chapter.title", L10n.int(summary.chapter)))
                         .font(.system(size: 22, weight: .black, design: .rounded))
                         .foregroundStyle(Color.white.opacity(0.97))
 
-                    Text("关卡 \(summary.levelRange.lowerBound)-\(summary.levelRange.upperBound) · \(summary.earnedStars)/\(summary.maxStars) 星")
+                    Text(
+                        L10n.tr(
+                            "home.chapter.rangeAndStars",
+                            L10n.int(summary.levelRange.lowerBound),
+                            L10n.int(summary.levelRange.upperBound),
+                            L10n.int(summary.earnedStars),
+                            L10n.int(summary.maxStars)
+                        )
+                    )
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(Color.white.opacity(0.72))
                 }
@@ -221,11 +241,11 @@ private extension HomeView {
             if !summary.isUnlocked,
                let earned = summary.unlockEarnedStars,
                let required = summary.unlockRequiredStars {
-                Text("上一章达到 \(earned)/\(required) 星后解锁。")
+                Text(L10n.tr("home.chapter.unlockRequirement", L10n.int(earned), L10n.int(required)))
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Color(red: 1.0, green: 0.83, blue: 0.52))
             } else {
-                Text("点击任意已解锁关卡进入回放。")
+                Text(L10n.tr("home.chapter.replayHint"))
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Color.white.opacity(0.66))
             }
@@ -246,7 +266,7 @@ private extension HomeView {
                 }
             }
 
-            Text("关卡回放会保留当前主线进度，只更新最佳星级。")
+            Text(L10n.tr("home.chapter.replayFooter"))
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(Color.white.opacity(0.55))
         }
@@ -270,13 +290,13 @@ private extension HomeView {
         let fill: Color
 
         if summary.isCurrent {
-            text = "当前章节"
+            text = L10n.tr("home.badge.current")
             fill = theme.badgeColor
         } else if summary.isUnlocked {
-            text = "已解锁"
+            text = L10n.tr("home.badge.unlocked")
             fill = theme.successAccent
         } else {
-            text = "未解锁"
+            text = L10n.tr("home.badge.locked")
             fill = Color(red: 0.43, green: 0.47, blue: 0.56)
         }
 
@@ -374,7 +394,7 @@ private struct ChapterPill: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
-                Text("第 \(summary.chapter) 章")
+                Text(L10n.tr("home.chapter.title", L10n.int(summary.chapter)))
                     .font(.system(size: 14, weight: .bold))
                 if !summary.isUnlocked {
                     Image(systemName: "lock.fill")
@@ -382,7 +402,7 @@ private struct ChapterPill: View {
                 }
             }
 
-            Text("\(summary.earnedStars)/\(summary.maxStars) 星")
+            Text(L10n.tr("home.chapter.stars", L10n.int(summary.earnedStars), L10n.int(summary.maxStars)))
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(Color.white.opacity(isSelected ? 0.84 : 0.62))
         }
@@ -422,14 +442,14 @@ private struct LevelTile: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("第 \(level.level) 关")
+                Text(L10n.tr("home.level.title", L10n.int(level.level)))
                     .font(.system(size: 15, weight: .bold))
                     .foregroundStyle(Color.white.opacity(level.isSelectable ? 0.96 : 0.54))
 
                 Spacer(minLength: 8)
 
                 if level.isCurrent {
-                    Text("当前")
+                    Text(L10n.tr("home.level.current"))
                         .font(.system(size: 10, weight: .black))
                         .foregroundStyle(Color.black.opacity(0.82))
                         .padding(.horizontal, 7)
@@ -455,15 +475,15 @@ private struct LevelTile: View {
             }
 
             if !level.isSelectable {
-                Text("未开放")
+                Text(L10n.tr("home.level.locked"))
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(Color.white.opacity(0.42))
             } else if level.stars > 0 {
-                Text("已完成")
+                Text(L10n.tr("home.level.completed"))
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(theme.successAccent)
             } else {
-                Text("可挑战")
+                Text(L10n.tr("home.level.available"))
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(Color.white.opacity(0.65))
             }

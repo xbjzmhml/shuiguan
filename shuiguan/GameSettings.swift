@@ -98,30 +98,30 @@ struct GameSettingsSheet: View {
                 guard isEnabled, !suppressPreview else { return }
                 feedback.previewHapticsToggleEnabled()
             }
-            .alert("恢复默认设置？", isPresented: $showingResetSettingsAlert) {
-                Button("取消", role: .cancel) {}
-                Button("恢复") {
+            .alert(L10n.tr("settings.resetDefaults.title"), isPresented: $showingResetSettingsAlert) {
+                Button(L10n.tr("common.cancel"), role: .cancel) {}
+                Button(L10n.tr("settings.resetDefaults.confirm")) {
                     performWithoutPreview {
                         settings.resetToDefaults()
                     }
                     feedback.activateForForeground(using: settings)
                 }
             } message: {
-                Text("音效、震动和调试显示会恢复为默认值。")
+                Text(L10n.tr("settings.resetDefaults.message"))
             }
-            .alert("重置游戏进度？", isPresented: $showingResetProgressAlert) {
-                Button("取消", role: .cancel) {}
-                Button("重置", role: .destructive) {
+            .alert(L10n.tr("settings.resetProgress.title"), isPresented: $showingResetProgressAlert) {
+                Button(L10n.tr("common.cancel"), role: .cancel) {}
+                Button(L10n.tr("settings.resetProgress.confirm"), role: .destructive) {
                     gameState.resetProgress()
                 }
             } message: {
-                Text("这会回到第 1 关，并清空已获得的星级和检查点。")
+                Text(L10n.tr("settings.resetProgress.message"))
             }
-            .navigationTitle("设置")
+            .navigationTitle(L10n.tr("settings.title"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("完成") {
+                    Button(L10n.tr("common.done")) {
                         dismiss()
                     }
                 }
@@ -130,40 +130,44 @@ struct GameSettingsSheet: View {
     }
 
     private var feedbackSection: some View {
-        Section("反馈") {
-            Toggle("音效", isOn: $settings.soundEnabled)
-            Toggle("震动", isOn: $settings.hapticsEnabled)
+        Section {
+            Toggle(L10n.tr("settings.sound"), isOn: $settings.soundEnabled)
+            Toggle(L10n.tr("settings.haptics"), isOn: $settings.hapticsEnabled)
+        } header: {
+            Text(L10n.tr("settings.section.feedback"))
         }
     }
 
     @ViewBuilder
     private var debugSection: some View {
 #if DEBUG
-        Section("调试") {
-            Toggle("显示调试信息", isOn: $settings.debugHUDEnabled)
+        Section {
+            Toggle(L10n.tr("settings.showDebugInfo"), isOn: $settings.debugHUDEnabled)
+        } header: {
+            Text(L10n.tr("settings.section.debug"))
         }
 #endif
     }
 
     private var dataSection: some View {
         Section {
-            Button("恢复默认设置") {
+            Button(L10n.tr("settings.resetDefaults")) {
                 showingResetSettingsAlert = true
             }
 
-            Button("重置游戏进度", role: .destructive) {
+            Button(L10n.tr("settings.resetProgress"), role: .destructive) {
                 showingResetProgressAlert = true
             }
         } header: {
-            Text("数据")
+            Text(L10n.tr("settings.section.data"))
         } footer: {
-            Text("重置进度会清空关卡、星级和检查点记录。")
+            Text(L10n.tr("settings.dataFooter"))
         }
     }
 
     private var helpSection: some View {
         Section {
-            Button("查看玩法说明") {
+            Button(L10n.tr("settings.viewGuide")) {
                 feedback.playTap(using: settings)
                 dismiss()
 
@@ -173,9 +177,13 @@ struct GameSettingsSheet: View {
                 }
             }
         } header: {
-            Text("帮助")
+            Text(L10n.tr("settings.section.help"))
         } footer: {
-            Text(settings.tutorialGuideCompleted ? "可以随时重新查看玩法说明。" : "首次玩法说明还未完成。")
+            Text(
+                settings.tutorialGuideCompleted
+                    ? L10n.tr("settings.helpFooter.complete")
+                    : L10n.tr("settings.helpFooter.pending")
+            )
         }
     }
 

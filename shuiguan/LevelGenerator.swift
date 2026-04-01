@@ -29,23 +29,23 @@ private enum ChapterStyle {
         switch self {
         case .training:
             return ChapterDescriptor(
-                title: "入门水路",
-                detail: "先学会盯住最终主管，误导分支最少，给判断节奏打底。"
+                title: L10n.tr("chapter.training.title"),
+                detail: L10n.tr("chapter.training.detail")
             )
         case .crossfire:
             return ChapterDescriptor(
-                title: "交叉迷墙",
-                detail: "中段交叉明显变密，假路线会更频繁地往主管附近靠。"
+                title: L10n.tr("chapter.crossfire.title"),
+                detail: L10n.tr("chapter.crossfire.detail")
             )
         case .whirlpool:
             return ChapterDescriptor(
-                title: "回环陷阱",
-                detail: "回环和折返开始主导路线，不能只看局部拐点。"
+                title: L10n.tr("chapter.whirlpool.title"),
+                detail: L10n.tr("chapter.whirlpool.detail")
             )
         case .pressure:
             return ChapterDescriptor(
-                title: "深水高压",
-                detail: "交叉、回环和绕路会混在一起，整体更紧、更乱、更难读。"
+                title: L10n.tr("chapter.pressure.title"),
+                detail: L10n.tr("chapter.pressure.detail")
             )
         }
     }
