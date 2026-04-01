@@ -81,51 +81,62 @@ struct GameSettingsSheet: View {
     @State private var suppressPreview = false
 
     var body: some View {
-        NavigationStack {
-            Form {
-                feedbackSection
-                debugSection
-                helpSection
-                dataSection
-            }
-            .scrollContentBackground(.hidden)
-            .background(backgroundGradient)
-            .onChange(of: settings.soundEnabled) { _, isEnabled in
-                guard isEnabled, !suppressPreview else { return }
-                feedback.previewSoundToggleEnabled()
-            }
-            .onChange(of: settings.hapticsEnabled) { _, isEnabled in
-                guard isEnabled, !suppressPreview else { return }
-                feedback.previewHapticsToggleEnabled()
-            }
-            .alert(L10n.tr("settings.resetDefaults.title"), isPresented: $showingResetSettingsAlert) {
-                Button(L10n.tr("common.cancel"), role: .cancel) {}
-                Button(L10n.tr("settings.resetDefaults.confirm")) {
-                    performWithoutPreview {
-                        settings.resetToDefaults()
-                    }
-                    feedback.activateForForeground(using: settings)
-                }
-            } message: {
-                Text(L10n.tr("settings.resetDefaults.message"))
-            }
-            .alert(L10n.tr("settings.resetProgress.title"), isPresented: $showingResetProgressAlert) {
-                Button(L10n.tr("common.cancel"), role: .cancel) {}
-                Button(L10n.tr("settings.resetProgress.confirm"), role: .destructive) {
-                    gameState.resetProgress()
-                }
-            } message: {
-                Text(L10n.tr("settings.resetProgress.message"))
-            }
-            .navigationTitle(L10n.tr("settings.title"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(L10n.tr("common.done")) {
-                        dismiss()
+        NavigationView {
+            formBody
+                .background(backgroundGradient)
+                .navigationTitle(L10n.tr("settings.title"))
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button(L10n.tr("common.done")) {
+                            dismiss()
+                        }
                     }
                 }
+        }
+        .navigationViewStyle(.stack)
+    }
+
+    @ViewBuilder
+    private var formBody: some View {
+        let form = Form {
+            feedbackSection
+            debugSection
+            helpSection
+            dataSection
+        }
+        .onChange(of: settings.soundEnabled) { isEnabled in
+            guard isEnabled, !suppressPreview else { return }
+            feedback.previewSoundToggleEnabled()
+        }
+        .onChange(of: settings.hapticsEnabled) { isEnabled in
+            guard isEnabled, !suppressPreview else { return }
+            feedback.previewHapticsToggleEnabled()
+        }
+        .alert(L10n.tr("settings.resetDefaults.title"), isPresented: $showingResetSettingsAlert) {
+            Button(L10n.tr("common.cancel"), role: .cancel) {}
+            Button(L10n.tr("settings.resetDefaults.confirm")) {
+                performWithoutPreview {
+                    settings.resetToDefaults()
+                }
+                feedback.activateForForeground(using: settings)
             }
+        } message: {
+            Text(L10n.tr("settings.resetDefaults.message"))
+        }
+        .alert(L10n.tr("settings.resetProgress.title"), isPresented: $showingResetProgressAlert) {
+            Button(L10n.tr("common.cancel"), role: .cancel) {}
+            Button(L10n.tr("settings.resetProgress.confirm"), role: .destructive) {
+                gameState.resetProgress()
+            }
+        } message: {
+            Text(L10n.tr("settings.resetProgress.message"))
+        }
+
+        if #available(iOS 16.0, *) {
+            form.scrollContentBackground(.hidden)
+        } else {
+            form
         }
     }
 

@@ -52,7 +52,7 @@ struct ContentView: View {
                 }
             }
         }
-        .onChange(of: scenePhase) { _, phase in
+        .onChange(of: scenePhase) { phase in
             switch phase {
             case .active:
                 feedback.activateForForeground(using: settings)

@@ -122,7 +122,7 @@ struct GameView: View {
             .onAppear {
                 tutorialPulse = true
             }
-            .onChange(of: gameState.phase) { _, phase in
+            .onChange(of: gameState.phase) { phase in
                 handlePhaseChange(phase, pipes: pipes, size: size)
             }
             .sheet(isPresented: $showingSettings) {
