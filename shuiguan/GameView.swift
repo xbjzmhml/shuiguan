@@ -1,5 +1,12 @@
 import SwiftUI
 
+private struct RenderedLevelSnapshot {
+    let seed: UInt64
+    let levelNumber: Int
+    let inlets: [CGPoint]
+    let level: MazeLevel
+}
+
 struct GameView: View {
     @ObservedObject var gameState: GameState
     @ObservedObject var settings: GameSettings
@@ -20,14 +27,19 @@ struct GameView: View {
     @State private var debugCupResetTask: Task<Void, Never>?
     @State private var debugToast: DebugToast?
     @State private var campaignCelebration: CampaignCelebration?
+    @State private var renderedLevel: RenderedLevelSnapshot?
+    @State private var renderRequestID = UUID()
 
     var body: some View {
         GeometryReader { proxy in
             let size = proxy.size
-            let generated = generator.generate(seed: gameState.activeLevelSeed, levelNumber: gameState.levelNumber)
+            let currentSeed = gameState.activeLevelSeed
+            let currentLevelNumber = gameState.levelNumber
+            let levelSnapshot = renderedLevel
+            let isLevelReady = levelSnapshot?.seed == currentSeed && levelSnapshot?.levelNumber == currentLevelNumber
             let theme = ChapterTheme.forChapter(gameState.currentChapter)
-            let inlets = generated.inlets
-            let level = generated.level
+            let inlets = isLevelReady ? (levelSnapshot?.inlets ?? []) : []
+            let level = isLevelReady ? (levelSnapshot?.level ?? MazeLevel(pipes: [], correctPipeID: -1)) : MazeLevel(pipes: [], correctPipeID: -1)
             let pipes = level.pipes
             let pipeWidth = min(size.width, size.height) * 0.045
 
@@ -50,6 +62,10 @@ struct GameView: View {
                     successPulseID: successPulseID,
                     theme: theme
                 )
+
+                if !isLevelReady {
+                    loadingOverlay(size: size, theme: theme)
+                }
 
                 if let burst = activeStarBurst {
                     FlyingStarsOverlay(burst: burst)
@@ -119,6 +135,13 @@ struct GameView: View {
             .contentShape(Rectangle())
             .onAppear {
                 tutorialPulse = true
+                requestRenderedLevel(seed: currentSeed, levelNumber: currentLevelNumber)
+            }
+            .onChange(of: gameState.activeLevelSeed) { seed in
+                requestRenderedLevel(seed: seed, levelNumber: gameState.levelNumber)
+            }
+            .onChange(of: gameState.levelNumber) { levelNumber in
+                requestRenderedLevel(seed: gameState.activeLevelSeed, levelNumber: levelNumber)
             }
             .onChange(of: gameState.phase) { phase in
                 handlePhaseChange(phase, pipes: pipes, size: size)
@@ -126,6 +149,7 @@ struct GameView: View {
             .onDisappear {
                 debugCupResetTask?.cancel()
                 campaignCelebration = nil
+                renderedLevel = nil
                 feedback.stopPour()
             }
             .sheet(isPresented: $showingSettings) {
@@ -145,6 +169,48 @@ struct GameView: View {
 }
 
 private extension GameView {
+    func loadingOverlay(size: CGSize, theme: ChapterTheme) -> some View {
+        VStack(spacing: 12) {
+            ProgressView()
+                .progressViewStyle(.circular)
+                .tint(theme.cardAccent)
+                .scaleEffect(1.25)
+
+            Text("Loading...")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color.white.opacity(0.8))
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 16)
+        .background(Color.black.opacity(0.30), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(theme.cardAccent.opacity(0.22), lineWidth: 1)
+        )
+        .position(x: size.width * 0.5, y: size.height * 0.5)
+        .allowsHitTesting(false)
+    }
+
+    func requestRenderedLevel(seed: UInt64, levelNumber: Int) {
+        let requestID = UUID()
+        renderRequestID = requestID
+        renderedLevel = nil
+        let generator = self.generator
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            let generated = generator.generate(seed: seed, levelNumber: levelNumber)
+            DispatchQueue.main.async {
+                guard renderRequestID == requestID else { return }
+                renderedLevel = RenderedLevelSnapshot(
+                    seed: seed,
+                    levelNumber: levelNumber,
+                    inlets: generated.inlets,
+                    level: generated.level
+                )
+            }
+        }
+    }
+
     func pipesLayer(pipes: [Pipe], size: CGSize, pipeWidth: CGFloat, theme: ChapterTheme) -> some View {
         let ordered = pipes.sorted { lhs, rhs in
             if lhs.drawOrder == rhs.drawOrder {

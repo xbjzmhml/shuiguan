@@ -753,7 +753,6 @@ final class GameState: ObservableObject {
 
     private func highestSelectableLevel() -> Int {
         let highestCompletedLevel = bestStarsByLevel.keys.max() ?? 0
-        // Keep the next unseen mainline level selectable after a chapter is unlocked via replay stars.
         return min(max(levelNumber, highestCompletedLevel + 1, 1), Self.maxMainlineLevel)
     }
 
