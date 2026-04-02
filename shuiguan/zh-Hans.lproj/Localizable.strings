@@ -37,7 +37,7 @@
 "guide.finishFirstRun" = "开始试玩";
 "guide.finish" = "关闭说明";
 
-"home.title" = "水管迷宫";
+"home.title" = "试管迷宫";
 "home.hero.subtitle" = "当前章节：%@ · 章节推进、刷星回放、从任意已解锁关卡继续。";
 "home.stat.currentLevel" = "当前关卡";
 "home.stat.totalStars" = "总星级";

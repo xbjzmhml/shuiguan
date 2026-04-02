@@ -37,7 +37,7 @@
 "guide.finishFirstRun" = "플레이 시작";
 "guide.finish" = "가이드 닫기";
 
-"home.title" = "파이프 미로";
+"home.title" = "시험관 미로";
 "home.hero.subtitle" = "현재 챕터: %@. 챕터를 진행하고 별을 모으며, 해금된 레벨로 언제든 돌아갈 수 있습니다.";
 "home.stat.currentLevel" = "현재 레벨";
 "home.stat.totalStars" = "총 별";

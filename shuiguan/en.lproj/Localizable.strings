@@ -37,7 +37,7 @@
 "guide.finishFirstRun" = "Start Playing";
 "guide.finish" = "Close Guide";
 
-"home.title" = "Pipe Maze";
+"home.title" = "Pipe Tracer";
 "home.hero.subtitle" = "Current chapter: %@. Push through chapters, replay for stars, and jump back into any unlocked level.";
 "home.stat.currentLevel" = "Current Level";
 "home.stat.totalStars" = "Total Stars";

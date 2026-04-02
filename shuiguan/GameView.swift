@@ -475,23 +475,32 @@ private extension GameView {
                                     )
                                     .blur(radius: lostCupDropping ? 0 : 1)
                                 }
-                        }
+                    }
                         .opacity(idx == lostCupIndex && lostCupDropping ? 0.6 : 1)
                 }
             }
 
-            Color.clear
-                .frame(width: cupWidth + 18, height: cupHeight + 18)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    registerDebugCupTap()
-                }
+            debugCupHotspot(cupWidth: cupWidth, cupHeight: cupHeight)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .background(theme.badgeColor.opacity(0.22), in: Capsule())
         .position(x: size.width * 0.18, y: size.height * 0.958)
         .modifier(ShakeEffect(animatableData: livesShakeTick))
+    }
+
+    @ViewBuilder
+    func debugCupHotspot(cupWidth: CGFloat, cupHeight: CGFloat) -> some View {
+#if DEBUG
+        Color.clear
+            .frame(width: cupWidth + 18, height: cupHeight + 18)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                registerDebugCupTap()
+            }
+#else
+        EmptyView()
+#endif
     }
 
     func chapterStarsPanel(
