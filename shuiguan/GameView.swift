@@ -19,15 +19,15 @@ struct GameView: View {
     @State private var debugCupTapCount = 0
     @State private var debugCupResetTask: Task<Void, Never>?
     @State private var debugToast: DebugToast?
+    @State private var campaignCelebration: CampaignCelebration?
 
     var body: some View {
         GeometryReader { proxy in
             let size = proxy.size
-            let generated = generator.generate(seed: gameState.levelSeed, levelNumber: gameState.levelNumber)
+            let generated = generator.generate(seed: gameState.activeLevelSeed, levelNumber: gameState.levelNumber)
             let theme = ChapterTheme.forChapter(gameState.currentChapter)
             let inlets = generated.inlets
             let level = generated.level
-            let resolvedSeed = generated.resolvedSeed
             let pipes = level.pipes
             let pipeWidth = min(size.width, size.height) * 0.045
 
@@ -72,8 +72,7 @@ struct GameView: View {
 
                 if gameState.phase == .result {
                     resultPanel(size: size, theme: theme) {
-                        let nextSeed = generator.nextSeed(from: resolvedSeed)
-                        gameState.finishRound(nextSeed: nextSeed)
+                        handleResultAction()
                     }
                 }
 
@@ -87,6 +86,12 @@ struct GameView: View {
                         .id(debugToast.id)
                 }
 
+                if let campaignCelebration {
+                    campaignCelebrationOverlay(size: size, theme: theme)
+                        .id(campaignCelebration.id)
+                }
+
+                levelBadge(size: size, theme: theme)
                 livesPanel(size: size, theme: theme)
                 chapterStarsPanel(
                     size: size,
@@ -120,6 +125,7 @@ struct GameView: View {
             }
             .onDisappear {
                 debugCupResetTask?.cancel()
+                campaignCelebration = nil
                 feedback.stopPour()
             }
             .sheet(isPresented: $showingSettings) {
@@ -132,8 +138,7 @@ struct GameView: View {
             }
             .onTapGesture {
                 guard gameState.phase == .result else { return }
-                let nextSeed = generator.nextSeed(from: resolvedSeed)
-                gameState.finishRound(nextSeed: nextSeed)
+                handleResultAction()
             }
         }
     }
@@ -430,6 +435,9 @@ private extension GameView {
         theme: ChapterTheme
     ) -> some View {
         let progressText: String = {
+            if gameState.isFinalChapter {
+                return L10n.tr("game.chapter.finalChapter")
+            }
             if nextProgress.isUnlocked {
                 return L10n.tr("game.chapter.unlockProgressComplete", L10n.int(nextProgress.targetChapter))
             }
@@ -603,6 +611,24 @@ private extension GameView {
             .allowsHitTesting(false)
     }
 
+    func levelBadge(size: CGSize, theme: ChapterTheme) -> some View {
+        Text(L10n.tr("home.level.value", L10n.int(gameState.levelNumber)))
+            .font(.system(size: 13, weight: .bold))
+            .foregroundStyle(Color.white.opacity(0.95))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(
+                theme.badgeColor.opacity(0.24),
+                in: Capsule()
+            )
+            .overlay(
+                Capsule()
+                    .stroke(theme.cardAccent.opacity(0.18), lineWidth: 1)
+            )
+            .position(x: size.width * 0.50, y: size.height * 0.08)
+            .allowsHitTesting(false)
+    }
+
     func topButton(symbol: String, theme: ChapterTheme, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
@@ -633,7 +659,9 @@ private extension GameView {
         VStack(alignment: .leading, spacing: 2) {
             Text("L\(gameState.levelNumber)")
                 .font(.system(size: 11, weight: .bold, design: .monospaced))
-            Text("S\(gameState.levelSeed)")
+            Text("V\(gameState.currentVariantNumber)/\(gameState.variantCount)")
+                .font(.system(size: 10, weight: .medium, design: .monospaced))
+            Text("S\(gameState.activeLevelSeed)")
                 .font(.system(size: 10, weight: .medium, design: .monospaced))
         }
         .foregroundStyle(Color.white.opacity(0.78))
@@ -647,6 +675,11 @@ private extension GameView {
     func praiseOverlay(size: CGSize, banner: PraiseBanner) -> some View {
         PraiseOverlayView(banner: banner)
             .position(x: size.width * 0.5, y: size.height * 0.22)
+            .allowsHitTesting(false)
+    }
+
+    func campaignCelebrationOverlay(size: CGSize, theme: ChapterTheme) -> some View {
+        CampaignCelebrationOverlay(theme: theme, size: size)
             .allowsHitTesting(false)
     }
 
@@ -670,6 +703,9 @@ private extension GameView {
         case .success:
             feedback.playSuccess(using: settings)
             playSuccessFeedback(size: size)
+            if gameState.levelNumber >= gameState.maxMainlineLevel {
+                playCampaignCelebration()
+            }
         case .fail:
             feedback.playFailure(using: settings)
             playFailureFeedback()
@@ -680,8 +716,30 @@ private extension GameView {
             lostCupIndex = nil
             lostCupDropping = false
             activeStarBurst = nil
+            campaignCelebration = nil
         default:
             break
+        }
+    }
+
+    func handleResultAction() {
+        if gameState.isCampaignCompletionResult {
+            gameState.finishRound()
+            onExit()
+            return
+        }
+        gameState.finishRound()
+    }
+
+    func playCampaignCelebration() {
+        let celebration = CampaignCelebration()
+        campaignCelebration = celebration
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            if campaignCelebration?.id == celebration.id {
+                campaignCelebration = nil
+            }
         }
     }
 
@@ -827,25 +885,27 @@ private extension GameView {
 
     func resultPanel(size: CGSize, theme: ChapterTheme, onFinish: @escaping () -> Void) -> some View {
         let success = gameState.lastResultCorrect
+        let campaignComplete = success && gameState.levelNumber >= gameState.maxMainlineLevel
         let outOfLives = !success && gameState.lives == 0
         let stars = gameState.lastEarnedStars
         let title: String = {
+            if campaignComplete { return L10n.tr("game.result.campaignComplete") }
             if success { return L10n.tr("game.result.success") }
-            if outOfLives { return L10n.tr("game.result.outOfLives", L10n.int(gameState.checkpointLevel)) }
+            if outOfLives { return L10n.tr("game.result.outOfLives") }
             return L10n.tr("game.result.fail")
         }()
         let buttonTitle: String = {
+            if campaignComplete { return L10n.tr("game.result.returnHome") }
             if success { return L10n.tr("game.result.nextLevel") }
-            if outOfLives { return L10n.tr("game.result.restart") }
+            if outOfLives { return L10n.tr("game.result.nextLayout") }
             return L10n.tr("game.result.retry")
         }()
         let subtitle: String = {
+            if campaignComplete { return L10n.tr("game.result.campaignCompleteSubtitle") }
             if success {
                 return L10n.tr("game.result.successSubtitle", L10n.int(stars), L10n.int(gameState.totalStars))
             }
-            if outOfLives {
-                return L10n.tr("game.result.outOfLivesSubtitle", L10n.int(gameState.checkpointLevel))
-            }
+            if outOfLives { return L10n.tr("game.result.outOfLivesSubtitle") }
             return L10n.tr("game.result.failSubtitle", L10n.int(gameState.lives), L10n.int(gameState.maxLives))
         }()
 
@@ -1078,6 +1138,10 @@ private struct DebugToast: Identifiable {
     let text: String
 }
 
+private struct CampaignCelebration: Identifiable {
+    let id = UUID()
+}
+
 private struct FlyingStarsOverlay: View {
     let burst: StarBurst
     @State private var started = false
@@ -1119,6 +1183,122 @@ private struct FlyingStarsOverlay: View {
             started = false
             withAnimation(.spring(response: 0.62, dampingFraction: 0.76)) {
                 started = true
+            }
+        }
+    }
+}
+
+private struct CampaignCelebrationOverlay: View {
+    let theme: ChapterTheme
+    let size: CGSize
+
+    @State private var animate = false
+
+    private let particleOffsets: [CGSize] = [
+        CGSize(width: -0.34, height: -0.28),
+        CGSize(width: -0.20, height: -0.36),
+        CGSize(width: 0.00, height: -0.40),
+        CGSize(width: 0.22, height: -0.34),
+        CGSize(width: 0.36, height: -0.24),
+        CGSize(width: -0.40, height: -0.06),
+        CGSize(width: 0.40, height: -0.04),
+        CGSize(width: -0.34, height: 0.16),
+        CGSize(width: -0.18, height: 0.28),
+        CGSize(width: 0.18, height: 0.30),
+        CGSize(width: 0.34, height: 0.18),
+        CGSize(width: 0.00, height: 0.38)
+    ]
+
+    var body: some View {
+        let center = CGPoint(x: size.width * 0.5, y: size.height * 0.34)
+        let radius = min(size.width, size.height)
+
+        return ZStack {
+            RadialGradient(
+                colors: [
+                    theme.outletGlow.opacity(0.26),
+                    Color.clear
+                ],
+                center: .center,
+                startRadius: 10,
+                endRadius: radius * 0.52
+            )
+            .frame(width: radius * 1.2, height: radius * 1.2)
+            .position(center)
+
+            ForEach(Array(particleOffsets.enumerated()), id: \.offset) { index, offset in
+                let x = offset.width * radius
+                let y = offset.height * radius
+                let symbol = index.isMultiple(of: 3) ? "sparkle" : "star.fill"
+
+                Image(systemName: symbol)
+                    .font(.system(size: index.isMultiple(of: 3) ? 18 : 22, weight: .black))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [
+                                theme.warningAccent.opacity(0.98),
+                                Color.white.opacity(0.96)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .shadow(color: theme.outletGlow.opacity(0.84), radius: 12)
+                    .scaleEffect(animate ? 1 : 0.3)
+                    .opacity(animate ? 0 : 1)
+                    .position(
+                        x: center.x + (animate ? x : 0),
+                        y: center.y + (animate ? y : 0)
+                    )
+                    .animation(
+                        .easeOut(duration: 1.1).delay(Double(index) * 0.045),
+                        value: animate
+                    )
+            }
+
+            VStack(spacing: 10) {
+                Image(systemName: "trophy.fill")
+                    .font(.system(size: 34, weight: .black))
+                    .foregroundStyle(theme.warningAccent)
+                    .padding(16)
+                    .background(
+                        Circle().fill(Color.black.opacity(0.26))
+                    )
+                    .overlay(
+                        Circle()
+                            .stroke(theme.cardAccent.opacity(0.26), lineWidth: 1)
+                    )
+                    .shadow(color: theme.outletGlow.opacity(0.78), radius: 18)
+
+                Text(L10n.tr("game.result.campaignComplete"))
+                    .font(.system(size: 28, weight: .black, design: .rounded))
+                    .foregroundStyle(Color.white.opacity(0.98))
+
+                Text(L10n.tr("game.result.campaignCompleteSubtitle"))
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color.white.opacity(0.74))
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: min(size.width * 0.72, 320))
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 18)
+            .background(
+                Color.black.opacity(0.18),
+                in: RoundedRectangle(cornerRadius: 24, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .stroke(theme.cardAccent.opacity(0.16), lineWidth: 1)
+            )
+            .scaleEffect(animate ? 1 : 0.82)
+            .opacity(animate ? 1 : 0)
+            .position(center)
+            .animation(.spring(response: 0.56, dampingFraction: 0.72), value: animate)
+        }
+        .onAppear {
+            animate = false
+            withAnimation(.spring(response: 0.56, dampingFraction: 0.72)) {
+                animate = true
             }
         }
     }

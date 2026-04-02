@@ -71,6 +71,7 @@ final class GameState: ObservableObject {
     @Published private(set) var lives: Int
     @Published private(set) var streak: Int = 0
     @Published private(set) var levelNumber: Int = 1
+    @Published private(set) var variantIndex: Int = 0
     @Published private(set) var checkpointLevel: Int = 1
     @Published private(set) var praiseBanner: PraiseBanner?
     @Published private(set) var totalStars: Int = 0
@@ -88,11 +89,14 @@ final class GameState: ObservableObject {
     private var bestStarsByLevel: [Int: Int] = [:]
     private var replayBaseline: ProgressSnapshot?
     private static let chapterSize = 10
+    private static let campaignChapterCount = 10
     private static let chapterUnlockRequiredStars = 18
+    private static let levelVariantCount = 3
     private enum StorageKey {
         static let startSeed = "shuiguan.startSeed"
         static let levelSeed = "shuiguan.levelSeed"
         static let levelNumber = "shuiguan.levelNumber"
+        static let variantIndex = "shuiguan.variantIndex"
         static let lives = "shuiguan.lives"
         static let streak = "shuiguan.streak"
         static let checkpointSeed = "shuiguan.checkpointSeed"
@@ -103,6 +107,7 @@ final class GameState: ObservableObject {
             startSeed,
             levelSeed,
             levelNumber,
+            variantIndex,
             lives,
             streak,
             checkpointSeed,
@@ -115,6 +120,7 @@ final class GameState: ObservableObject {
     private struct ProgressSnapshot {
         let levelSeed: UInt64
         let levelNumber: Int
+        let variantIndex: Int
         let lives: Int
         let streak: Int
         let checkpointLevel: Int
@@ -130,6 +136,7 @@ final class GameState: ObservableObject {
         let storedStartSeed = Self.readUInt64(StorageKey.startSeed, from: storage)
         let storedLevelSeed = Self.readUInt64(StorageKey.levelSeed, from: storage)
         let storedLevelNumber = storage.object(forKey: StorageKey.levelNumber) as? Int
+        let storedVariantIndex = storage.object(forKey: StorageKey.variantIndex) as? Int
         let storedLives = storage.object(forKey: StorageKey.lives) as? Int
         let storedStreak = storage.object(forKey: StorageKey.streak) as? Int
         let storedLevelMistakes = storage.object(forKey: StorageKey.levelMistakes) as? Int
@@ -145,6 +152,7 @@ final class GameState: ObservableObject {
               let savedLevelNumber = storedLevelNumber else {
             self.levelSeed = self.startSeed
             self.levelNumber = 1
+            self.variantIndex = 0
             self.lives = defaultLives
             self.streak = 0
             self.levelMistakes = 0
@@ -156,7 +164,8 @@ final class GameState: ObservableObject {
 
         // Later launches: resume where player left.
         self.levelSeed = max(savedLevelSeed, 1)
-        self.levelNumber = max(savedLevelNumber, 1)
+        self.levelNumber = min(max(savedLevelNumber, 1), Self.maxMainlineLevel)
+        self.variantIndex = Self.normalizeVariantIndex(storedVariantIndex ?? 0)
         self.lives = min(max(storedLives ?? defaultLives, 0), defaultLives)
         self.streak = max(storedStreak ?? 0, 0)
         self.levelMistakes = max(storedLevelMistakes ?? 0, 0)
@@ -177,7 +186,9 @@ final class GameState: ObservableObject {
         }
 
         if lives <= 0 {
-            restoreFromCheckpoint()
+            advanceToNextVariant()
+            resetRoundState()
+            persistProgress()
         } else {
             persistProgress()
         }
@@ -191,16 +202,40 @@ final class GameState: ObservableObject {
         Self.chapterForLevel(levelNumber)
     }
 
+    var maxMainlineLevel: Int {
+        Self.maxMainlineLevel
+    }
+
+    var isFinalChapter: Bool {
+        currentChapter >= Self.campaignChapterCount
+    }
+
+    var isCampaignCompletionResult: Bool {
+        phase == .result && lastResultCorrect && levelNumber >= Self.maxMainlineLevel
+    }
+
+    var activeLevelSeed: UInt64 {
+        seedForVariant(baseSeed: levelSeed, levelNumber: levelNumber, variantIndex: variantIndex)
+    }
+
+    var currentVariantNumber: Int {
+        variantIndex + 1
+    }
+
+    var nextVariantNumber: Int {
+        (normalizedVariantIndex(variantIndex + 1) + 1)
+    }
+
+    var variantCount: Int {
+        Self.levelVariantCount
+    }
+
     var isReplaying: Bool {
         replayBaseline != nil
     }
 
     func chapterSummaries() -> [ChapterSummary] {
-        let highestCompletedLevel = bestStarsByLevel.keys.max() ?? 0
-        let highestKnownLevel = max(levelNumber, highestCompletedLevel, 1)
-        let chapterCount = max(Self.chapterForLevel(highestKnownLevel) + 1, 4)
-
-        return (1...chapterCount).map { chapter in
+        return (1...Self.campaignChapterCount).map { chapter in
             let range = Self.levelRange(for: chapter)
             let earned = stars(in: range)
 
@@ -282,6 +317,7 @@ final class GameState: ObservableObject {
 
         levelNumber = resolvedLevel
         levelSeed = seedForLevel(levelNumber)
+        variantIndex = 0
         checkpointLevel = Self.checkpointForLevel(levelNumber)
         checkpointSeed = seedForLevel(checkpointLevel)
         lives = maxLives
@@ -302,8 +338,7 @@ final class GameState: ObservableObject {
         if replayBaseline != nil {
             restoreReplayBaseline()
         } else if lives <= 0 {
-            restoreFromCheckpoint()
-            return
+            advanceToNextVariant()
         }
         resetRoundState()
         persistProgress()
@@ -321,6 +356,7 @@ final class GameState: ObservableObject {
         checkpointSeed = startSeed
         levelSeed = startSeed
         levelNumber = 1
+        variantIndex = 0
         lives = maxLives
         streak = 0
         levelMistakes = 0
@@ -336,7 +372,9 @@ final class GameState: ObservableObject {
         chapterLockNotice = nil
         chapterMilestoneNotice = nil
         if lives <= 0 {
-            restoreFromCheckpoint()
+            advanceToNextVariant()
+            resetRoundState()
+            persistProgress()
         }
         guard phase == .idle else { return }
         guard lives > 0 else { return }
@@ -403,16 +441,36 @@ final class GameState: ObservableObject {
         phase = .result
     }
 
-    func finishRound(nextSeed: UInt64) {
+    func finishRound() {
         guard phase == .result else { return }
 
         if lastResultCorrect {
+            if levelNumber >= Self.maxMainlineLevel {
+                variantIndex = 0
+                lives = maxLives
+                levelMistakes = 0
+                checkpointLevel = levelNumber
+                checkpointSeed = levelSeed
+                if let baseline = replayBaseline, levelNumber >= baseline.levelNumber {
+                    replayBaseline = nil
+                }
+                resetRoundState()
+                persistProgress()
+                return
+            }
+
             let nextLevel = levelNumber + 1
+            let nextLevelSeed = seedAfterVariants(
+                baseSeed: levelSeed,
+                levelNumber: levelNumber,
+                steps: Self.levelVariantCount
+            )
             if let gate = gateInfoForAccessingLevel(nextLevel), !gate.isUnlocked {
                 applyChapterLock(gate)
             } else {
-                levelSeed = nextSeed
+                levelSeed = nextLevelSeed
                 levelNumber = nextLevel
+                variantIndex = 0
                 if Self.isCheckpointLevel(levelNumber) {
                     checkpointLevel = levelNumber
                     checkpointSeed = levelSeed
@@ -423,9 +481,7 @@ final class GameState: ObservableObject {
                 replayBaseline = nil
             }
         } else if lives == 0 {
-            // All cups used: fallback to last checkpoint (10, 20, 30...).
-            restoreFromCheckpoint()
-            return
+            advanceToNextVariant()
         }
 
         resetRoundState()
@@ -486,18 +542,6 @@ final class GameState: ObservableObject {
         phase = .idle
     }
 
-    private func restoreFromCheckpoint() {
-        levelSeed = checkpointSeed
-        levelNumber = checkpointLevel
-        lives = maxLives
-        streak = 0
-        levelMistakes = 0
-        chapterLockNotice = nil
-        chapterMilestoneNotice = nil
-        resetRoundState()
-        persistProgress()
-    }
-
     private func seedForLevel(_ targetLevel: Int) -> UInt64 {
         let resolvedLevel = max(targetLevel, 1)
         if resolvedLevel == 1 {
@@ -506,10 +550,49 @@ final class GameState: ObservableObject {
 
         var seed = startSeed
         for level in 1..<resolvedLevel {
-            let generated = generator.generate(seed: seed, levelNumber: level)
+            seed = seedAfterVariants(
+                baseSeed: seed,
+                levelNumber: level,
+                steps: Self.levelVariantCount
+            )
+        }
+        return seed
+    }
+
+    private func normalizedVariantIndex(_ raw: Int) -> Int {
+        Self.normalizeVariantIndex(raw)
+    }
+
+    private static func normalizeVariantIndex(_ raw: Int) -> Int {
+        let count = levelVariantCount
+        let remainder = raw % count
+        return remainder >= 0 ? remainder : remainder + count
+    }
+
+    private func seedForVariant(baseSeed: UInt64, levelNumber: Int, variantIndex: Int) -> UInt64 {
+        seedAfterVariants(
+            baseSeed: baseSeed,
+            levelNumber: levelNumber,
+            steps: normalizedVariantIndex(variantIndex)
+        )
+    }
+
+    private func seedAfterVariants(baseSeed: UInt64, levelNumber: Int, steps: Int) -> UInt64 {
+        var seed = baselineSafeSeed(baseSeed)
+        guard steps > 0 else { return seed }
+
+        for _ in 0..<steps {
+            let generated = generator.generate(seed: seed, levelNumber: levelNumber)
             seed = generator.nextSeed(from: generated.resolvedSeed)
         }
         return seed
+    }
+
+    private func advanceToNextVariant() {
+        variantIndex = normalizedVariantIndex(variantIndex + 1)
+        lives = maxLives
+        streak = 0
+        chapterLockNotice = nil
     }
 
     private func persistProgress() {
@@ -518,6 +601,7 @@ final class GameState: ObservableObject {
         storage.set(startSeed, forKey: StorageKey.startSeed)
         storage.set(persisted.levelSeed, forKey: StorageKey.levelSeed)
         storage.set(persisted.levelNumber, forKey: StorageKey.levelNumber)
+        storage.set(persisted.variantIndex, forKey: StorageKey.variantIndex)
         storage.set(persisted.lives, forKey: StorageKey.lives)
         storage.set(persisted.streak, forKey: StorageKey.streak)
         storage.set(persisted.levelMistakes, forKey: StorageKey.levelMistakes)
@@ -530,6 +614,7 @@ final class GameState: ObservableObject {
         ProgressSnapshot(
             levelSeed: levelSeed,
             levelNumber: levelNumber,
+            variantIndex: variantIndex,
             lives: lives,
             streak: streak,
             checkpointLevel: checkpointLevel,
@@ -547,6 +632,7 @@ final class GameState: ObservableObject {
     private func apply(snapshot: ProgressSnapshot) {
         levelSeed = baselineSafeSeed(snapshot.levelSeed)
         levelNumber = max(snapshot.levelNumber, 1)
+        variantIndex = normalizedVariantIndex(snapshot.variantIndex)
         lives = min(max(snapshot.lives, 0), maxLives)
         streak = max(snapshot.streak, 0)
         checkpointLevel = max(snapshot.checkpointLevel, 1)
@@ -593,6 +679,11 @@ final class GameState: ObservableObject {
     ) -> ChapterMilestoneNotice? {
         let chapter = Self.chapterForLevel(clearedLevel)
         let chapterRange = Self.levelRange(for: chapter)
+
+        if chapter == Self.campaignChapterCount,
+           clearedLevel == chapterRange.upperBound {
+            return nil
+        }
 
         if clearedLevel == chapterRange.upperBound {
             if gateAfter.isUnlocked {
@@ -655,6 +746,7 @@ final class GameState: ObservableObject {
 
     private func canSelectLevel(_ level: Int) -> Bool {
         let resolvedLevel = max(level, 1)
+        guard resolvedLevel <= Self.maxMainlineLevel else { return false }
         guard gateInfoForAccessingLevel(resolvedLevel) == nil else { return false }
         return resolvedLevel <= highestSelectableLevel()
     }
@@ -662,13 +754,14 @@ final class GameState: ObservableObject {
     private func highestSelectableLevel() -> Int {
         let highestCompletedLevel = bestStarsByLevel.keys.max() ?? 0
         // Keep the next unseen mainline level selectable after a chapter is unlocked via replay stars.
-        return max(levelNumber, highestCompletedLevel + 1, 1)
+        return min(max(levelNumber, highestCompletedLevel + 1, 1), Self.maxMainlineLevel)
     }
 
     private func applyChapterLock(_ gate: ChapterProgressInfo) {
         let replayLevel = gate.sourceRange.lowerBound
         levelNumber = replayLevel
         levelSeed = seedForLevel(replayLevel)
+        variantIndex = 0
         lives = maxLives
         streak = 0
         levelMistakes = 0
@@ -714,6 +807,10 @@ final class GameState: ObservableObject {
         let start = (resolvedChapter - 1) * chapterSize + 1
         let end = resolvedChapter * chapterSize
         return start...end
+    }
+
+    private static var maxMainlineLevel: Int {
+        chapterSize * campaignChapterCount
     }
 
     private static func makeSeed() -> UInt64 {

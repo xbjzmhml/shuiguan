@@ -19,12 +19,12 @@
 "settings.viewGuide" = "Ver guía de juego";
 "settings.helpFooter.complete" = "Puedes volver a abrir la guía cuando quieras.";
 "settings.helpFooter.pending" = "La guía inicial aún no se ha completado.";
-"settings.dataFooter" = "Reiniciar el progreso borra niveles, estrellas y puntos de control.";
+"settings.dataFooter" = "Reiniciar el progreso borra los niveles y las estrellas guardadas.";
 "settings.resetDefaults.title" = "¿Restaurar ajustes predeterminados?";
 "settings.resetDefaults.message" = "El sonido y la vibración volverán a sus valores predeterminados.";
 "settings.resetDefaults.confirm" = "Restaurar";
 "settings.resetProgress.title" = "¿Reiniciar el progreso del juego?";
-"settings.resetProgress.message" = "Volverás al Nivel 1 y se borrarán todas las estrellas y puntos de control obtenidos.";
+"settings.resetProgress.message" = "Volverás al Nivel 1 y se borrarán todas las estrellas obtenidas.";
 "settings.resetProgress.confirm" = "Reiniciar";
 
 "guide.stepLabel" = "PASO %lld";
@@ -33,7 +33,7 @@
 "guide.step2.title" = "Comprueba si llega a la tubería principal";
 "guide.step2.detail" = "Las curvas, cruces y bucles están ahí para confundirte. Solo la entrada que termina en la tubería principal inferior es correcta.";
 "guide.step3.title" = "Los errores cuestan vasos, pero las estrellas se quedan";
-"guide.step3.detail" = "Una elección incorrecta te cuesta 1 vaso. Si te quedas sin vasos, vuelves al punto de control. Repetir niveles antiguos solo actualiza tu mejor puntuación de estrellas y nunca reemplaza tu progreso principal.";
+"guide.step3.detail" = "Una elección incorrecta cuesta 1 vaso. Si te quedas sin vasos, el nivel cambia al siguiente diseño. Los errores de este nivel siguen contando para las estrellas.";
 "guide.finishFirstRun" = "Empezar a jugar";
 "guide.finish" = "Cerrar guía";
 
@@ -41,9 +41,11 @@
 "home.hero.subtitle" = "Capítulo actual: %@. Avanza por capítulos, repite niveles para conseguir estrellas y vuelve a cualquier nivel desbloqueado.";
 "home.stat.currentLevel" = "Nivel actual";
 "home.stat.totalStars" = "Estrellas totales";
+"home.stat.layout" = "Diseño";
 "home.stat.checkpoint" = "Punto de control";
 "home.level.value" = "Nivel %lld";
 "home.totalStars.value" = "⭐ %lld";
+"home.layout.value" = "%lld/%lld";
 "home.checkpoint.value" = "Nivel %lld";
 "home.continue.title" = "Continuar";
 "home.continue.subtitle" = "Reanuda desde el Nivel %lld";
@@ -76,12 +78,13 @@
 "game.chapter.unlockProgressComplete" = "Capítulo %lld desbloqueado";
 "game.chapter.unlockProgress" = "Desbloquea Capítulo %lld %lld/%lld";
 "game.chapter.current" = "Actual: Capítulo %lld";
+"game.chapter.finalChapter" = "Capítulo final";
 "game.hint.start.title" = "Empieza desde arriba";
 "game.hint.start.detail" = "Toca cualquier embudo para soltar el agua. Fluirá por completo por la tubería que elijas.";
 "game.hint.exit.title" = "Lee la salida final";
 "game.hint.exit.detail" = "Observa cada giro y cruce. Solo la entrada que termina en la tubería principal inferior es correcta.";
 "game.hint.cup.title" = "Los errores cuestan un vaso";
-"game.hint.cup.detail" = "Cada error te cuesta 1 vaso. Si pierdes los 3, reinicias desde el último punto de control.";
+"game.hint.cup.detail" = "Cada error cuesta 1 vaso. Si pierdes los 3, el nivel cambia al siguiente diseño.";
 "game.replayMode" = "Modo repetición";
 "game.debug.correctFunnel" = "Correcto: F%lld";
 "game.debug.enabled" = "HUD de depuración activado";
@@ -90,13 +93,17 @@
 "game.lockedChapter.progress" = "Estrellas actuales: %lld/%lld";
 "game.lockedChapter.replay" = "Volviste al Nivel %lld para conseguir más estrellas";
 "game.result.success" = "Nivel superado";
-"game.result.outOfLives" = "Sin vasos. Vuelves al Nivel %lld";
+"game.result.campaignComplete" = "Todos los niveles superados";
+"game.result.outOfLives" = "Sin vasos. Nuevo diseño";
 "game.result.fail" = "Elección incorrecta. Perdiste 1 vaso";
 "game.result.nextLevel" = "Siguiente nivel";
+"game.result.nextLayout" = "Siguiente diseño";
+"game.result.returnHome" = "Volver al inicio";
 "game.result.restart" = "Reiniciar";
 "game.result.retry" = "Reintentar";
+"game.result.campaignCompleteSubtitle" = "Has superado los 100 niveles principales.";
 "game.result.successSubtitle" = "Esta partida: %lld estrellas · Total: %lld";
-"game.result.outOfLivesSubtitle" = "Has vuelto al punto de control del Nivel %lld";
+"game.result.outOfLivesSubtitle" = "Cambiando a un nuevo diseño. Los errores de este nivel siguen contando.";
 "game.result.failSubtitle" = "Vasos restantes: %lld/%lld";
 
 "praise.streak2" = "Racha x2 Bien";

@@ -19,12 +19,12 @@
 "settings.viewGuide" = "查看玩法說明";
 "settings.helpFooter.complete" = "可以隨時重新查看玩法說明。";
 "settings.helpFooter.pending" = "首次玩法說明尚未完成。";
-"settings.dataFooter" = "重置進度會清空關卡、星級和檢查點記錄。";
+"settings.dataFooter" = "重置進度會清空關卡和星級記錄。";
 "settings.resetDefaults.title" = "恢復預設設定？";
 "settings.resetDefaults.message" = "音效和震動會恢復為預設值。";
 "settings.resetDefaults.confirm" = "恢復";
 "settings.resetProgress.title" = "重置遊戲進度？";
-"settings.resetProgress.message" = "這會回到第 1 關，並清空已獲得的星級和檢查點。";
+"settings.resetProgress.message" = "這會回到第 1 關，並清空已獲得的星級。";
 "settings.resetProgress.confirm" = "重置";
 
 "guide.stepLabel" = "第 %lld 步";
@@ -33,7 +33,7 @@
 "guide.step2.title" = "看清最後是否流進主管";
 "guide.step2.detail" = "轉彎、交叉和回環都會干擾判斷。只有最後匯入下方主管的那根才是正確入口。";
 "guide.step3.title" = "失誤會扣水杯，但星級會保留";
-"guide.step3.detail" = "選錯會扣 1 杯水，水杯用完就回到檢查點。回放舊關只會刷新最佳星級，不會覆蓋主線進度。";
+"guide.step3.detail" = "選錯會扣 1 杯水，3 杯用完就切到同關的下一張地圖。這一關的失誤會累計計入星級。";
 "guide.finishFirstRun" = "開始遊玩";
 "guide.finish" = "關閉說明";
 
@@ -41,9 +41,11 @@
 "home.hero.subtitle" = "目前章節：%@ · 章節推進、刷星回放、從任意已解鎖關卡繼續。";
 "home.stat.currentLevel" = "目前關卡";
 "home.stat.totalStars" = "總星級";
+"home.stat.layout" = "地圖";
 "home.stat.checkpoint" = "檢查點";
 "home.level.value" = "第 %lld 關";
 "home.totalStars.value" = "⭐ %lld";
+"home.layout.value" = "%lld/%lld";
 "home.checkpoint.value" = "第 %lld 關";
 "home.continue.title" = "繼續主線";
 "home.continue.subtitle" = "從第 %lld 關進入";
@@ -76,12 +78,13 @@
 "game.chapter.unlockProgressComplete" = "解鎖第 %lld 章 已達成";
 "game.chapter.unlockProgress" = "解鎖第 %lld 章 %lld/%lld";
 "game.chapter.current" = "目前：第 %lld 章";
+"game.chapter.finalChapter" = "最終章";
 "game.hint.start.title" = "先從上方開始";
 "game.hint.start.detail" = "點任意漏斗放水，水會沿著你選中的那根管子流到底。";
 "game.hint.exit.title" = "看清最終出口";
 "game.hint.exit.detail" = "觀察轉彎和交叉，只有最後流進下方主管的入口才算選對。";
 "game.hint.cup.title" = "選錯會扣水杯";
-"game.hint.cup.detail" = "每次失誤扣 1 杯水，3 杯用完就會退回最近的檢查點重來。";
+"game.hint.cup.detail" = "每次失誤扣 1 杯水，3 杯用完就會切到同關的下一張地圖。";
 "game.replayMode" = "回放模式";
 "game.debug.correctFunnel" = "正確：F%lld";
 "game.debug.enabled" = "除錯已開啟";
@@ -90,13 +93,17 @@
 "game.lockedChapter.progress" = "目前 %lld/%lld 星";
 "game.lockedChapter.replay" = "已回到第 %lld 關刷星";
 "game.result.success" = "通關成功";
-"game.result.outOfLives" = "水杯用完，回到第 %lld 關";
+"game.result.campaignComplete" = "全部關卡通關";
+"game.result.outOfLives" = "水杯用完，換一張地圖";
 "game.result.fail" = "失敗，扣 1 杯水";
 "game.result.nextLevel" = "下一關";
+"game.result.nextLayout" = "下一張地圖";
+"game.result.returnHome" = "返回首頁";
 "game.result.restart" = "重新開始";
 "game.result.retry" = "重試";
+"game.result.campaignCompleteSubtitle" = "你已經完成全部 100 關主線。";
 "game.result.successSubtitle" = "本關 %lld 星 · 總星 %lld";
-"game.result.outOfLivesSubtitle" = "已回退到第 %lld 關";
+"game.result.outOfLivesSubtitle" = "會切到新的地圖，本關失誤會繼續累計。";
 "game.result.failSubtitle" = "剩餘水杯 %lld/%lld";
 
 "praise.streak2" = "連中 x2 很棒";

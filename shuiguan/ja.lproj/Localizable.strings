@@ -19,12 +19,12 @@
 "settings.viewGuide" = "遊び方を見る";
 "settings.helpFooter.complete" = "遊び方はいつでも再表示できます。";
 "settings.helpFooter.pending" = "初回ガイドはまだ完了していません。";
-"settings.dataFooter" = "進行状況をリセットすると、レベル、星、チェックポイントの記録が消去されます。";
+"settings.dataFooter" = "進行状況をリセットすると、レベルと星の記録が消去されます。";
 "settings.resetDefaults.title" = "設定をデフォルトに戻しますか？";
 "settings.resetDefaults.message" = "サウンドと振動はデフォルトに戻ります。";
 "settings.resetDefaults.confirm" = "戻す";
 "settings.resetProgress.title" = "ゲームの進行状況をリセットしますか？";
-"settings.resetProgress.message" = "レベル1に戻り、獲得した星とチェックポイントがすべて消去されます。";
+"settings.resetProgress.message" = "レベル1に戻り、獲得した星がすべて消去されます。";
 "settings.resetProgress.confirm" = "リセット";
 
 "guide.stepLabel" = "STEP %lld";
@@ -33,7 +33,7 @@
 "guide.step2.title" = "本管まで届くかを見極めよう";
 "guide.step2.detail" = "曲がり角、交差、ループが判断を惑わせます。下の本管に最後に合流する入口だけが正解です。";
 "guide.step3.title" = "ミスでカップは減るが星は残る";
-"guide.step3.detail" = "間違えると水カップを1つ失います。すべてなくなるとチェックポイントに戻ります。過去ステージの再挑戦では最高星のみ更新され、メイン進行は上書きされません。";
+"guide.step3.detail" = "間違えると水カップを1つ失います。すべてなくなると同じレベルの次のレイアウトに切り替わります。このレベルでのミス数は星評価に累積されます。";
 "guide.finishFirstRun" = "プレイ開始";
 "guide.finish" = "ガイドを閉じる";
 
@@ -41,9 +41,11 @@
 "home.hero.subtitle" = "現在のチャプター: %@。チャプターを進め、星を集め、解放済みレベルへいつでも戻れます。";
 "home.stat.currentLevel" = "現在のレベル";
 "home.stat.totalStars" = "合計スター";
+"home.stat.layout" = "レイアウト";
 "home.stat.checkpoint" = "チェックポイント";
 "home.level.value" = "レベル %lld";
 "home.totalStars.value" = "⭐ %lld";
+"home.layout.value" = "%lld/%lld";
 "home.checkpoint.value" = "レベル %lld";
 "home.continue.title" = "続きから";
 "home.continue.subtitle" = "レベル %lld から再開";
@@ -76,12 +78,13 @@
 "game.chapter.unlockProgressComplete" = "チャプター %lld 解放済み";
 "game.chapter.unlockProgress" = "チャプター %lld 解放 %lld/%lld";
 "game.chapter.current" = "現在: チャプター %lld";
+"game.chapter.finalChapter" = "最終チャプター";
 "game.hint.start.title" = "上から始めよう";
 "game.hint.start.detail" = "漏斗を1つタップすると注水が始まります。水は選んだ管を最後まで流れます。";
 "game.hint.exit.title" = "最後の出口を読む";
 "game.hint.exit.detail" = "曲がりや交差をよく見ましょう。下の本管に入る入口だけが正解です。";
 "game.hint.cup.title" = "ミスでカップを失う";
-"game.hint.cup.detail" = "ミス1回でカップを1つ失います。3つなくなると直近のチェックポイントからやり直しです。";
+"game.hint.cup.detail" = "ミス1回でカップを1つ失います。3つなくなると同じレベルの次のレイアウトに切り替わります。";
 "game.replayMode" = "再挑戦モード";
 "game.debug.correctFunnel" = "正解: F%lld";
 "game.debug.enabled" = "デバッグ表示オン";
@@ -90,13 +93,17 @@
 "game.lockedChapter.progress" = "現在のスター: %lld/%lld";
 "game.lockedChapter.replay" = "スター集めのためレベル %lld に戻りました";
 "game.result.success" = "レベルクリア";
-"game.result.outOfLives" = "カップ切れ。レベル %lld に戻ります";
+"game.result.campaignComplete" = "全ステージ制覇";
+"game.result.outOfLives" = "カップ切れ。別のレイアウトへ";
 "game.result.fail" = "不正解。カップを1つ失いました";
 "game.result.nextLevel" = "次のレベル";
+"game.result.nextLayout" = "次のレイアウト";
+"game.result.returnHome" = "ホームへ戻る";
 "game.result.restart" = "再開";
 "game.result.retry" = "再挑戦";
+"game.result.campaignCompleteSubtitle" = "メイン 100 レベルをすべてクリアしました。";
 "game.result.successSubtitle" = "今回: %lld スター ・ 合計: %lld";
-"game.result.outOfLivesSubtitle" = "チェックポイントのレベル %lld に戻りました";
+"game.result.outOfLivesSubtitle" = "新しいレイアウトに切り替わります。このレベルのミスは引き継がれます。";
 "game.result.failSubtitle" = "残りカップ: %lld/%lld";
 
 "praise.streak2" = "2連続 ナイス";

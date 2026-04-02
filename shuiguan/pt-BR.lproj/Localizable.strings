@@ -19,12 +19,12 @@
 "settings.viewGuide" = "Ver guia de jogo";
 "settings.helpFooter.complete" = "Você pode abrir o guia novamente a qualquer momento.";
 "settings.helpFooter.pending" = "O guia inicial ainda não foi concluído.";
-"settings.dataFooter" = "Redefinir o progresso apaga níveis, estrelas e checkpoints.";
+"settings.dataFooter" = "Redefinir o progresso apaga os níveis e as estrelas salvas.";
 "settings.resetDefaults.title" = "Restaurar configurações padrão?";
 "settings.resetDefaults.message" = "Som e vibração voltarão aos valores padrão.";
 "settings.resetDefaults.confirm" = "Restaurar";
 "settings.resetProgress.title" = "Redefinir o progresso do jogo?";
-"settings.resetProgress.message" = "Você voltará ao Nível 1 e todas as estrelas e checkpoints obtidos serão apagados.";
+"settings.resetProgress.message" = "Você voltará ao Nível 1 e todas as estrelas obtidas serão apagadas.";
 "settings.resetProgress.confirm" = "Redefinir";
 
 "guide.stepLabel" = "PASSO %lld";
@@ -33,7 +33,7 @@
 "guide.step2.title" = "Veja se ela chega ao tubo principal";
 "guide.step2.detail" = "Curvas, cruzamentos e voltas existem para confundir você. Apenas a entrada que termina no tubo principal inferior está correta.";
 "guide.step3.title" = "Erros custam copos, mas as estrelas ficam";
-"guide.step3.detail" = "Uma escolha errada custa 1 copo. Se você ficar sem copos, volta ao checkpoint. Repetir fases antigas só atualiza sua melhor pontuação de estrelas e nunca substitui o progresso principal.";
+"guide.step3.detail" = "Uma escolha errada custa 1 copo. Se você ficar sem copos, a fase muda para o próximo layout. Os erros desta fase continuam contando para as estrelas.";
 "guide.finishFirstRun" = "Começar a jogar";
 "guide.finish" = "Fechar guia";
 
@@ -41,9 +41,11 @@
 "home.hero.subtitle" = "Capítulo atual: %@. Avance pelos capítulos, repita fases para ganhar estrelas e volte para qualquer fase desbloqueada.";
 "home.stat.currentLevel" = "Nível atual";
 "home.stat.totalStars" = "Total de estrelas";
+"home.stat.layout" = "Layout";
 "home.stat.checkpoint" = "Checkpoint";
 "home.level.value" = "Nível %lld";
 "home.totalStars.value" = "⭐ %lld";
+"home.layout.value" = "%lld/%lld";
 "home.checkpoint.value" = "Nível %lld";
 "home.continue.title" = "Continuar";
 "home.continue.subtitle" = "Retome do Nível %lld";
@@ -76,12 +78,13 @@
 "game.chapter.unlockProgressComplete" = "Capítulo %lld desbloqueado";
 "game.chapter.unlockProgress" = "Desbloqueie o Capítulo %lld %lld/%lld";
 "game.chapter.current" = "Atual: Capítulo %lld";
+"game.chapter.finalChapter" = "Capítulo final";
 "game.hint.start.title" = "Comece de cima";
 "game.hint.start.detail" = "Toque em qualquer funil para liberar a água. Ela percorrerá todo o tubo que você escolher.";
 "game.hint.exit.title" = "Leia a saída final";
 "game.hint.exit.detail" = "Observe cada curva e cruzamento. Apenas a entrada que termina no tubo principal inferior está correta.";
 "game.hint.cup.title" = "Erros custam um copo";
-"game.hint.cup.detail" = "Cada erro custa 1 copo. Se os 3 acabarem, você recomeça do último checkpoint.";
+"game.hint.cup.detail" = "Cada erro custa 1 copo. Se os 3 acabarem, a fase muda para o próximo layout.";
 "game.replayMode" = "Modo repetição";
 "game.debug.correctFunnel" = "Correto: F%lld";
 "game.debug.enabled" = "HUD de depuração ativado";
@@ -90,13 +93,17 @@
 "game.lockedChapter.progress" = "Estrelas atuais: %lld/%lld";
 "game.lockedChapter.replay" = "Você voltou ao Nível %lld para ganhar mais estrelas";
 "game.result.success" = "Nível concluído";
-"game.result.outOfLives" = "Sem copos. De volta ao Nível %lld";
+"game.result.campaignComplete" = "Todos os níveis concluídos";
+"game.result.outOfLives" = "Sem copos. Novo layout";
 "game.result.fail" = "Escolha errada. Você perdeu 1 copo";
 "game.result.nextLevel" = "Próximo nível";
+"game.result.nextLayout" = "Próximo layout";
+"game.result.returnHome" = "Voltar ao início";
 "game.result.restart" = "Reiniciar";
 "game.result.retry" = "Tentar novamente";
+"game.result.campaignCompleteSubtitle" = "Você concluiu os 100 níveis principais.";
 "game.result.successSubtitle" = "Nesta rodada: %lld estrelas · Total: %lld";
-"game.result.outOfLivesSubtitle" = "Você voltou ao checkpoint do Nível %lld";
+"game.result.outOfLivesSubtitle" = "Mudando para um novo layout. Os erros desta fase continuam contando.";
 "game.result.failSubtitle" = "Copos restantes: %lld/%lld";
 
 "praise.streak2" = "Sequência x2 Boa";

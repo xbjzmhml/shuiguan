@@ -102,8 +102,12 @@ private extension HomeView {
                     accent: theme.cardAccent
                 )
                 HomeStatPill(
-                    title: L10n.tr("home.stat.checkpoint"),
-                    value: L10n.tr("home.checkpoint.value", L10n.int(gameState.checkpointLevel)),
+                    title: L10n.tr("home.stat.layout"),
+                    value: L10n.tr(
+                        "home.layout.value",
+                        L10n.int(gameState.currentVariantNumber),
+                        L10n.int(gameState.variantCount)
+                    ),
                     accent: theme.cardAccent
                 )
             }
@@ -455,10 +459,6 @@ private struct LevelTile: View {
                         .padding(.horizontal, 7)
                         .padding(.vertical, 4)
                         .background(theme.cardAccent, in: Capsule())
-                } else if level.isCheckpoint {
-                    Image(systemName: "flag.fill")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(theme.warningAccent.opacity(level.isSelectable ? 0.96 : 0.42))
                 }
             }
 

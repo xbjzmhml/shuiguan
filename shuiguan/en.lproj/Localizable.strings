@@ -19,12 +19,12 @@
 "settings.viewGuide" = "View Gameplay Guide";
 "settings.helpFooter.complete" = "You can reopen the gameplay guide anytime.";
 "settings.helpFooter.pending" = "The first-time gameplay guide has not been completed yet.";
-"settings.dataFooter" = "Resetting progress clears level, star, and checkpoint records.";
+"settings.dataFooter" = "Resetting progress clears level and star records.";
 "settings.resetDefaults.title" = "Restore default settings?";
 "settings.resetDefaults.message" = "Sound and haptics will return to their default values.";
 "settings.resetDefaults.confirm" = "Restore";
 "settings.resetProgress.title" = "Reset game progress?";
-"settings.resetProgress.message" = "This will return you to Level 1 and clear all earned stars and checkpoints.";
+"settings.resetProgress.message" = "This will return you to Level 1 and clear all earned stars.";
 "settings.resetProgress.confirm" = "Reset";
 
 "guide.stepLabel" = "STEP %lld";
@@ -33,7 +33,7 @@
 "guide.step2.title" = "Check whether it reaches the main pipe";
 "guide.step2.detail" = "Turns, crossings, and loops are meant to mislead you. Only the inlet that finally reaches the lower main pipe is correct.";
 "guide.step3.title" = "Mistakes cost cups, but stars stay";
-"guide.step3.detail" = "A wrong choice costs 1 cup. If you run out of cups, you return to the checkpoint. Replaying old levels only updates your best stars and never overwrites story progress.";
+"guide.step3.detail" = "A wrong choice costs 1 cup. If you run out of cups, the level switches to the next layout. Mistakes still count toward this level's stars.";
 "guide.finishFirstRun" = "Start Playing";
 "guide.finish" = "Close Guide";
 
@@ -41,9 +41,11 @@
 "home.hero.subtitle" = "Current chapter: %@. Push through chapters, replay for stars, and jump back into any unlocked level.";
 "home.stat.currentLevel" = "Current Level";
 "home.stat.totalStars" = "Total Stars";
+"home.stat.layout" = "Layout";
 "home.stat.checkpoint" = "Checkpoint";
 "home.level.value" = "Level %lld";
 "home.totalStars.value" = "⭐ %lld";
+"home.layout.value" = "%lld/%lld";
 "home.checkpoint.value" = "Level %lld";
 "home.continue.title" = "Continue";
 "home.continue.subtitle" = "Resume from Level %lld";
@@ -76,12 +78,13 @@
 "game.chapter.unlockProgressComplete" = "Chapter %lld unlocked";
 "game.chapter.unlockProgress" = "Unlock Chapter %lld %lld/%lld";
 "game.chapter.current" = "Current: Chapter %lld";
+"game.chapter.finalChapter" = "Final Chapter";
 "game.hint.start.title" = "Start from the top";
 "game.hint.start.detail" = "Tap any funnel to release the water. It will flow all the way down the pipe you selected.";
 "game.hint.exit.title" = "Read the final outlet";
 "game.hint.exit.detail" = "Watch every turn and crossing. Only the inlet that ends in the lower main pipe is correct.";
 "game.hint.cup.title" = "Mistakes cost a cup";
-"game.hint.cup.detail" = "Each mistake costs 1 cup. If all 3 cups are gone, you restart from the latest checkpoint.";
+"game.hint.cup.detail" = "Each mistake costs 1 cup. If all 3 cups are gone, the level rotates to the next layout.";
 "game.replayMode" = "Replay Mode";
 "game.debug.correctFunnel" = "Correct: F%lld";
 "game.debug.enabled" = "Debug HUD On";
@@ -90,13 +93,17 @@
 "game.lockedChapter.progress" = "Current stars: %lld/%lld";
 "game.lockedChapter.replay" = "Returned to Level %lld to replay for stars";
 "game.result.success" = "Level Cleared";
-"game.result.outOfLives" = "Out of cups. Back to Level %lld";
+"game.result.campaignComplete" = "All Levels Cleared";
+"game.result.outOfLives" = "Out of cups. New layout";
 "game.result.fail" = "Wrong choice. Lost 1 cup";
 "game.result.nextLevel" = "Next Level";
+"game.result.nextLayout" = "Next Layout";
+"game.result.returnHome" = "Back Home";
 "game.result.restart" = "Restart";
 "game.result.retry" = "Retry";
+"game.result.campaignCompleteSubtitle" = "You cleared all 100 mainline levels.";
 "game.result.successSubtitle" = "This run: %lld stars · Total stars: %lld";
-"game.result.outOfLivesSubtitle" = "Returned to checkpoint Level %lld";
+"game.result.outOfLivesSubtitle" = "Switching to a new layout. Mistakes for this level still count.";
 "game.result.failSubtitle" = "Cups left: %lld/%lld";
 
 "praise.streak2" = "Streak x2 Nice";
